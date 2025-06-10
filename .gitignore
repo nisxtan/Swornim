@@ -1,0 +1,29 @@
+# Node modules folder
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+
+# Debugger files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build output (if you have build folders)
+dist/
+build/
+
+# Optional: npm package lock files (usually you want to keep package-lock.json or yarn.lock)
+# But if you want to ignore:
+# package-lock.json
+# yarn.lock
