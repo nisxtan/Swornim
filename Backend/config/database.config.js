@@ -2,7 +2,18 @@ const { Sequelize } = require("sequelize");
 const { DatabaseConfig } = require("./config");
 
 // Create sequelize instance
-const sequelize = new Sequelize(DatabaseConfig);
+const sequelize = new Sequelize(
+  DatabaseConfig.database,
+  DatabaseConfig.username,
+  DatabaseConfig.password,
+  {
+    host: DatabaseConfig.host,
+    port: DatabaseConfig.port,
+    dialect: DatabaseConfig.dialect,
+    logging: DatabaseConfig.logging,
+    pool: DatabaseConfig.pool
+  }
+);
 
 // Connection function
 const connectDB = async () => {
@@ -25,3 +36,4 @@ const connectDB = async () => {
 connectDB();
 
 // Export sequelize instance for use in other files
+module.exports = sequelize;
