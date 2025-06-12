@@ -1,7 +1,6 @@
 const { Sequelize } = require("sequelize");
 const { DatabaseConfig } = require("./config");
 
-// Create sequelize instance
 const sequelize = new Sequelize(
   DatabaseConfig.database,
   DatabaseConfig.username,
@@ -10,21 +9,28 @@ const sequelize = new Sequelize(
     host: DatabaseConfig.host,
     port: DatabaseConfig.port,
     dialect: DatabaseConfig.dialect,
-    logging: DatabaseConfig.logging,
-    pool: DatabaseConfig.pool
+    logging: false,
+    define: {
+      timestamps: true,
+      underscored: true,
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
   }
 );
 
-// Connection function
-const connectDB = async () => {
+const initializeDatabase = async () => {
   try {
-    // Test the connection
     await sequelize.authenticate();
-
-    // Sync all models (creates tables if they don't exist)
-    await sequelize.sync({ alter: true }); // Use { force: true } to drop and recreate tables
-
     console.log("PostgreSQL server connected successfully.");
+
+    // Sync models with database
+    await sequelize.sync({ alter: true });
+    console.log("Database synchronized successfully.");
   } catch (exception) {
     console.log("********Error establishing DB connection ********");
     console.log(exception);
@@ -32,8 +38,6 @@ const connectDB = async () => {
   }
 };
 
-// Auto-connect when this file is required
-connectDB();
+initializeDatabase();
 
-// Export sequelize instance for use in other files
 module.exports = sequelize;

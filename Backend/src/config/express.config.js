@@ -2,21 +2,23 @@ require("./database.config.js");
 const express = require("express");
 const router = require("./router.config.js");
 const app = express();
+
 app.use(
   express.json({
     limit: "10mb",
   })
 );
+
 app.use(
   express.urlencoded({
     extended: true,
   })
 );
 
-//?mounting / loading
-app.use("/api/v1", router); //versioning
+//? Mounting / loading
+app.use("/api/v1", router); // versioning
 
-//!error
+//! 404 handler - resource not found
 app.use((req, res, next) => {
   next({
     detail: "value",
@@ -25,18 +27,22 @@ app.use((req, res, next) => {
     status: "RESOURCE_NOT_FOUND",
     options: null,
   });
-  console.log("I am here");
 });
 
+//! Error handling middleware
 app.use((error, req, res, next) => {
   console.log(error);
-  let code = error.code || 500;
+
+  // Ensure code is a valid HTTP status code number
+  let code = parseInt(error.code, 10);
+  if (isNaN(code) || code < 100 || code > 599) {
+    code = 500;
+  }
+
   let detail = error.detail || null;
   let message = error.message || "Internal Server Error";
   let status = error.status || "";
-  //unique validation
 
-  //?generic middleware
   res.status(code).json({
     error: detail,
     message: message,
