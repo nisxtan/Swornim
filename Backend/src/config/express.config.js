@@ -1,7 +1,19 @@
 require("./database.config.js");
 const express = require("express");
+const cors = require("cors"); // ✅ Import CORS
 const router = require("./router.config.js");
+
 const app = express();
+
+// ✅ Enable CORS for all origins
+app.use(cors());
+
+// ✅ Optional: Fine-tune CORS if needed
+// app.use(cors({
+//   origin: '*',
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//   allowedHeaders: ['Content-Type', 'Authorization']
+// }));
 
 app.use(
   express.json({
