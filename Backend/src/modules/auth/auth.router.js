@@ -41,6 +41,11 @@ authRouter.post(
   authCtrl.resetPassword
 );
 
+// Email verification routes
+// GET route for clicking the link in email (no validation middleware needed)
+authRouter.get("/verify-email", authCtrl.verifyEmail);
+
+// POST route for API calls
 authRouter.post(
   "/verify-email",
   bodyValidator(VerifyEmailDTO),

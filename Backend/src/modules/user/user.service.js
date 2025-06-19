@@ -80,7 +80,10 @@ class UserService {
 
   getUserPublicProfile(user) {
     if (!user) return null;
-    return safeUserData(user);
+    // TEMP: Include emailVerificationToken for debugging
+    const publicData = safeUserData(user);
+    publicData.emailVerificationToken = user.emailVerificationToken;
+    return publicData;
   }
 
   async getUserDashboardData(userId) {
