@@ -17,7 +17,7 @@ class MakeupArtistController {
           message: "Makeup artist profile already exists for this user",
         };
       }
-      if (req.loggedInUser.userType !== UserType.MAKEUPARTIST) {
+      if (req.loggedInUser.userType !== UserType.MAKEUP_ARTIST) {
         if (req.file) deleteFile(req.file.path);
         throw {
           code: 403,

@@ -22,7 +22,7 @@ makeupArtistRouter.get("/:makeupArtistId", makeupArtistCtrl.getMakeupArtistProfi
 // Protected routes - MakeupArtist only
 makeupArtistRouter.post(
   "/profile",
-  auth([UserType.MAKEUPARTIST]),
+  auth([UserType.MAKEUP_ARTIST]),
   uploader.single("profileImage"),
   bodyValidator(CreateMakeupArtistDTO),
   makeupArtistCtrl.createMakeupArtist

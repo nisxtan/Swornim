@@ -96,7 +96,8 @@ class PhotographerController {
       const photographer = await photographerSvc.getSingleRowByFilter({
         userId: req.loggedInUser.id,
       });
-
+      console.log(photographer);
+      console.log(req.loggedInUser.id);
       if (!photographer) {
         throw {
           code: 404,
@@ -441,6 +442,7 @@ class PhotographerController {
       const photographer = await photographerSvc.getSingleRowByFilter({
         userId: req.loggedInUser.id,
       });
+      console.log(photographer);
 
       if (!photographer) {
         throw {
