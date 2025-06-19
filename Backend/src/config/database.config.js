@@ -1,6 +1,9 @@
 const { Sequelize } = require("sequelize");
 const { DatabaseConfig } = require("./config");
 
+// Import model associations
+require("./model.associations");
+
 const sequelize = new Sequelize(
   DatabaseConfig.database,
   DatabaseConfig.username,

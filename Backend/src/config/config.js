@@ -1,20 +1,33 @@
 require("dotenv").config();
 
 const DatabaseConfig = {
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  username: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST || 'localhost',
+  username: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
+  database: process.env.DB_NAME || 'swornim',
+  port: process.env.DB_PORT || 5432,
   dialect: "postgres",
+  logging: process.env.NODE_ENV === "development" ? console.log : false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+};
+
+const CloudinaryConfig = {
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  apiKey: process.env.CLOUDINARY_API_KEY,
+  apiSecret: process.env.CLOUDINARY_API_SECRET,
 };
 
 const AppConfig = {
-  jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
-  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || "1h",
+  jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "your-access-secret-key",
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key",
+  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || "15m",
   jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || "7d",
-  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
+  frontendUrl: process.env.FRONT_END_URL || "http://localhost:3000",
   port: process.env.PORT || 9005,
   host: process.env.HOST || "127.0.0.1",
 };
@@ -35,6 +48,7 @@ const EmailConfig = {
 
 module.exports = {
   DatabaseConfig,
+  CloudinaryConfig,
   AppConfig,
   EmailConfig,
 };
