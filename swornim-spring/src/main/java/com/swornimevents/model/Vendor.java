@@ -43,5 +43,5 @@ public class Vendor {
 
     @OneToOne
     @JoinColumn(name = "user_id")
-    private User user;
+    private AppUser user;
 } 

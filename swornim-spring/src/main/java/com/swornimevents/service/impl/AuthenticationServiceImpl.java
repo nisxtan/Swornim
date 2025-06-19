@@ -3,8 +3,8 @@ package com.swornimevents.service.impl;
 import com.swornimevents.dto.auth.AuthenticationRequest;
 import com.swornimevents.dto.auth.AuthenticationResponse;
 import com.swornimevents.dto.auth.RegisterRequest;
+import com.swornimevents.model.AppUser;
 import com.swornimevents.model.Role;
-import com.swornimevents.model.User;
 import com.swornimevents.repository.UserRepository;
 import com.swornimevents.security.JwtService;
 import com.swornimevents.service.AuthenticationService;
@@ -29,7 +29,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new RuntimeException("Email already exists");
         }
 
-        var user = User.builder()
+        var user = AppUser.builder()
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .email(request.getEmail())
