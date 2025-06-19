@@ -1,4 +1,4 @@
-import 'package:swornim/pages/models/service_providers/base_service_provider.dart';
+import 'package:swornim/pages/providers/service_providers/models/base_service_provider.dart';
 import 'package:swornim/pages/models/review.dart';
 import 'package:swornim/pages/models/location.dart';
 
@@ -13,16 +13,21 @@ class Venue extends ServiceProvider {
   final List<String> gallery;
   final List<String> services;
   final VenueType venueType;
+  final String contactPhone;
+  final String contactEmail;
 
   const Venue({
     required super.id,
-    required super.name,
+    required super.userId,
+    required super.businessName,
     required super.image,
     required super.description,
     required this.address,
     required this.capacity,
     required this.pricePerHour,
     required this.venueType,
+    required this.contactPhone,
+    required this.contactEmail,
     this.amenities = const [],
     this.images = const [],
     this.gallery = const [],
@@ -32,14 +37,15 @@ class Venue extends ServiceProvider {
     super.isAvailable = true,
     super.reviews = const [],
     super.location,
-    required super.contactPhone,
-    required super.contactEmail,
+    required super.createdAt,
+    required super.updatedAt, 
   });
 
   factory Venue.fromJson(Map<String, dynamic> json) {
     return Venue(
       id: json['id'] ?? '',
-      name: json['name'] ?? '',
+      userId: json['user_id'] ?? '',
+      businessName: json['business_name'] ?? '',
       description: json['description'] ?? '',
       address: json['address'] ?? '',
       image: json['image'] ?? '',
@@ -61,6 +67,8 @@ class Venue extends ServiceProvider {
       contactPhone: json['contact_phone'] ?? '',
       contactEmail: json['contact_email'] ?? '',
       venueType: VenueType.values.byName(json['venue_type'] ?? 'other'),
+      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(json['updated_at'] ?? DateTime.now().toIso8601String()), 
     );
   }
 
@@ -76,7 +84,60 @@ class Venue extends ServiceProvider {
       'gallery': gallery,
       'services': services,
       'venue_type': venueType.name,
+      'contact_phone': contactPhone,
+      'contact_email': contactEmail,
     });
     return baseJson;
+  }
+  
+  @override
+  Venue copyWith({
+    String? id,
+    String? userId,
+    String? businessName,
+    String? image,
+    String? description,
+    double? rating,
+    int? totalReviews,
+    bool? isAvailable,
+    List<Review>? reviews,
+    Location? location,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? address,
+    int? capacity,
+    double? pricePerHour,
+    List<String>? amenities,
+    List<String>? images,
+    List<String>? gallery,
+    List<String>? services,
+    VenueType? venueType,
+    String? contactPhone,
+    String? contactEmail,
+  }) {
+    return Venue(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      businessName: businessName ?? this.businessName,
+      image: image ?? this.image,
+      description: description ?? this.description,
+      rating: rating ?? this.rating,
+      totalReviews: totalReviews ?? this.totalReviews,
+      isAvailable: isAvailable ?? this.isAvailable,
+      reviews: reviews ?? this.reviews,
+      location: location ?? this.location,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      address: address ?? this.address,
+      capacity: capacity ?? this.capacity,
+      pricePerHour: pricePerHour ?? this.pricePerHour,
+      amenities: amenities ?? this.amenities,
+      images: images ?? this.images,
+      gallery: gallery ?? this.gallery,
+      services: services ?? this.services,
+      venueType: venueType ?? this.venueType,
+      contactPhone: contactPhone ?? this.contactPhone,
+      contactEmail: contactEmail ?? this.contactEmail, 
+    );
   }
 }

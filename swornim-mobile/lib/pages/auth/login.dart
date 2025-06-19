@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swornim/pages/Client/ClientDashboard.dart';
+import 'package:swornim/pages/models/user/user_types.dart';
+import 'package:swornim/pages/providers/auth/auth_provider.dart';
+import 'package:swornim/pages/service_providers/photographer/photographer_dashboard.dart';
 import 'signup.dart'; // Make sure this exists
+// Import your auth provider - adjust the path as needed
+// import 'package:swornim/providers/auth_provider.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, required Null Function() onSignupClicked});
+class LoginPage extends ConsumerStatefulWidget {
+  const LoginPage({super.key, required this.onSignupClicked});
+  
+  final VoidCallback onSignupClicked;
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -24,7 +32,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   String email = '';
   String password = '';
   bool _obscurePassword = true;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -76,50 +83,285 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       
-      setState(() {
-        _isLoading = true;
-      });
+      // Clear any previous errors
+      ref.read(authProvider.notifier).clearError();
+      
+      // Attempt login using the auth provider
+      final result = await ref.read(authProvider.notifier).login(
+        email: email,
+        password: password,
+      );
 
-      // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return;
 
-      // Login logic (you can add your backend call here later)
-      if (mounted) {
+      if (result.success) {
+        final user = result.user;
+        
+        if (user != null) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Welcome back, ${user.name}!',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+              backgroundColor: const Color(0xFF059669),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+
+          // Navigate based on user type
+          _navigateToUserDashboard(user.userType);
+        }
+      } else if (result.requiresVerification) {
+        // Handle email verification required
+        _showEmailVerificationDialog(result.user);
+      } else {
+        // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Welcome back, $email!',
+              result.error ?? 'Login failed',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
               ),
             ),
-            backgroundColor: const Color(0xFF059669),
+            backgroundColor: const Color(0xFFDC2626),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
           ),
         );
-
-        // Navigate to UserHomePage
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ClientDashboard()),
-        );
       }
-
-      setState(() {
-        _isLoading = false;
-      });
     }
+  }
+
+  void _navigateToUserDashboard(UserType userType) {
+    Widget dashboardPage;
+    
+    switch (userType) {
+      case UserType.client:
+        dashboardPage = const ClientDashboard();
+        break;
+      case UserType.photographer:
+        // Replace with your vendor dashboard
+        dashboardPage = const PhotographerDashboard(); // Temporary
+        break;
+      case UserType.makeupArtist:
+        // Replace with your admin dashboard
+        dashboardPage = const ClientDashboard(); // Temporary
+        break;
+      default:
+        dashboardPage = const ClientDashboard();
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => dashboardPage),
+    );
+  }
+
+  void _showEmailVerificationDialog(user) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Email Verification Required',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1F2937),
+          ),
+        ),
+        content: Text(
+          'Please verify your email address before logging in. Check your inbox for a verification link.',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: const Color(0xFF6B7280),
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF2563EB),
+              ),
+            ),
+          ),
+          if (user?.email != null)
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _resendVerificationEmail(user.email);
+              },
+              child: Text(
+                'Resend Email',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF059669),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _resendVerificationEmail(String email) async {
+    final result = await ref.read(authProvider.notifier).resendVerificationEmail(email);
+    
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success 
+            ? 'Verification email sent successfully!'
+            : result.error ?? 'Failed to send verification email',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: result.success 
+          ? const Color(0xFF059669)
+          : const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 
   void _navigateToSignup() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SignupPage(onLoginClicked: () {}),
+        builder: (context) => SignupPage(onLoginClicked: () {
+          Navigator.of(context).pop();
+        }),
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Reset Password',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1F2937),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter your email address and we\'ll send you a link to reset your password.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'Enter your email',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (emailController.text.isNotEmpty) {
+                Navigator.of(context).pop();
+                await _sendPasswordResetEmail(emailController.text);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Send Reset Link',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendPasswordResetEmail(String email) async {
+    final result = await ref.read(authProvider.notifier).forgotPassword(email);
+    
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success 
+            ? 'Password reset email sent successfully!'
+            : result.error ?? 'Failed to send reset email',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: result.success 
+          ? const Color(0xFF059669)
+          : const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
@@ -228,6 +470,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.isLoading;
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -274,6 +519,42 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   
                   const SizedBox(height: 48),
                   
+                  // Show error if exists
+                  if (authState.error != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFFCA5A5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFDC2626),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              authState.error!,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: const Color(0xFFDC2626),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  
                   // Email field
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,6 +573,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         focusNode: _emailFocus,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
+                        enabled: !isLoading,
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: const Color(0xFF1F2937),
@@ -380,6 +662,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         focusNode: _passwordFocus,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
+                        enabled: !isLoading,
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: const Color(0xFF1F2937),
@@ -464,31 +747,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        // Add forgot password functionality
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Forgot password feature coming soon!',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                              ),
-                            ),
-                            backgroundColor: const Color(0xFF2563EB),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: isLoading ? null : _showForgotPasswordDialog,
                       child: Text(
                         'Forgot Password?',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xFF2563EB),
+                          color: isLoading 
+                            ? const Color(0xFF9CA3AF)
+                            : const Color(0xFF2563EB),
                         ),
                       ),
                     ),
@@ -501,6 +768,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF9CA3AF),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 16,
@@ -511,8 +779,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       elevation: 2,
                       shadowColor: const Color(0xFF2563EB).withOpacity(0.25),
                     ),
-                    onPressed: _isLoading ? null : _tryLogin,
-                    child: _isLoading
+                    onPressed: isLoading ? null : _tryLogin,
+                    child: isLoading
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -583,6 +851,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF2563EB),
+                      disabledForegroundColor: const Color(0xFF9CA3AF),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 16,
@@ -590,18 +859,22 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      side: const BorderSide(
-                        color: Color(0xFF2563EB),
+                      side: BorderSide(
+                        color: isLoading 
+                          ? const Color(0xFF9CA3AF)
+                          : const Color(0xFF2563EB),
                         width: 1.5,
                       ),
                     ),
-                    onPressed: _navigateToSignup,
+                    onPressed: isLoading ? null : _navigateToSignup,
                     child: Text(
                       'Create New Account',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFF2563EB),
+                        color: isLoading 
+                          ? const Color(0xFF9CA3AF)
+                          : const Color(0xFF2563EB),
                       ),
                     ),
                   ),

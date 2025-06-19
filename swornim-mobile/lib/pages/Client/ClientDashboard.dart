@@ -1,5 +1,6 @@
 // pages/client/client_dashboard.dart (Updated version of UserHomePage)
 import 'package:flutter/material.dart';
+import 'package:swornim/pages/components/common/common/profile/profile_panel.dart';
 import 'package:swornim/pages/introduction/slider.dart';
 import 'package:swornim/pages/layouts/main_layout.dart';
 import 'package:swornim/pages/service_providers/makeupartist/makeupartist_list_page.dart';
@@ -59,7 +60,7 @@ class _ClientDashboardState extends State<ClientDashboard> with SingleTickerProv
       onProfileTap: () {
         // Handle profile tap
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile clicked')),
+          SnackBar(content: ProfilePanel()),
         );
       },
       child: FadeTransition(
@@ -96,10 +97,10 @@ class _ClientDashboardState extends State<ClientDashboard> with SingleTickerProv
   void _handleFeatureTap(String label, BuildContext context) {
     switch (label) {
       case 'Book Venue':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const VenueListPage()),
-        );
+        // Navigator.push(
+        //   context,
+        //   MaterialPageRoute(builder: (context) => const VenueListPage()),
+        // );
         break;
       case 'Photographers':
         Navigator.push(

@@ -1,9 +1,6 @@
 const { Sequelize } = require("sequelize");
 const { DatabaseConfig } = require("./config");
 
-// Import model associations
-require("./model.associations");
-
 const sequelize = new Sequelize(
   DatabaseConfig.database,
   DatabaseConfig.username,
@@ -26,6 +23,11 @@ const sequelize = new Sequelize(
   }
 );
 
+module.exports = sequelize;
+
+// Import model associations AFTER exporting sequelize to avoid circular dependency
+require("./model.associations");
+
 const initializeDatabase = async () => {
   try {
     await sequelize.authenticate();
@@ -42,5 +44,3 @@ const initializeDatabase = async () => {
 };
 
 initializeDatabase();
-
-module.exports = sequelize;

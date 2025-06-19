@@ -1,5 +1,9 @@
 // pages/cameraman/cameraman_dashboard.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'photographer_profile_form.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swornim/pages/layouts/main_layout.dart';
 import 'package:swornim/pages/widgets/photographer/dashboard/booking_requests.dart';
 import 'package:swornim/pages/widgets/photographer/dashboard/earnings_overview.dart';
@@ -12,7 +16,6 @@ class PhotographerDashboard extends StatefulWidget {
   const PhotographerDashboard({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _PhotographerDashboardState createState() => _PhotographerDashboardState();
 }
 
@@ -24,28 +27,45 @@ class _PhotographerDashboardState extends State<PhotographerDashboard> with Sing
   @override
   void initState() {
     super.initState();
+    _checkPhotographerProfile();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    ));
-
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    ));
-
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
     _animationController.forward();
+  }
+
+  Future<String> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('accessToken') ?? '';
+  }
+
+  Future<void> _checkPhotographerProfile() async {
+    final token = await getAccessToken();
+    final response = await http.get(
+      Uri.parse('http://localhost:9009/api/v1/photographers/profile/me'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode == 404) {
+      // Profile not found, redirect to profile creation form
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const PhotographerProfileForm()),
+        );
+      }
+    }
+    // else: do nothing, show dashboard as normal
   }
 
   @override

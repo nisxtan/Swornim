@@ -1,10 +1,10 @@
-// File: lib/pages/models/service_providers/base_service_provider.dart
 import 'package:swornim/pages/models/review.dart';
 import 'package:swornim/pages/models/location.dart';
 
 abstract class ServiceProvider {
   final String id;
-  final String name;
+  final String userId;
+  final String businessName;
   final String image;
   final String description;
   final double rating;
@@ -12,12 +12,13 @@ abstract class ServiceProvider {
   final bool isAvailable;
   final List<Review> reviews;
   final Location? location;
-  final String contactPhone;
-  final String contactEmail;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   const ServiceProvider({
     required this.id,
-    required this.name,
+    required this.userId,
+    required this.businessName,
     required this.image,
     required this.description,
     this.rating = 0.0,
@@ -25,14 +26,15 @@ abstract class ServiceProvider {
     this.isAvailable = true,
     this.reviews = const [],
     this.location,
-    this.contactPhone = '',
-    this.contactEmail = '',
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   Map<String, dynamic> toBaseJson() {
     return {
       'id': id,
-      'name': name,
+      'user_id': userId,
+      'business_name': businessName,
       'image': image,
       'description': description,
       'rating': rating,
@@ -40,11 +42,24 @@ abstract class ServiceProvider {
       'is_available': isAvailable,
       'reviews': reviews.map((r) => r.toJson()).toList(),
       'location': location?.toJson(),
-      'contact_phone': contactPhone,
-      'contact_email': contactEmail,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
     };
   }
 
   Map<String, dynamic> toJson();
+  ServiceProvider copyWith({
+    String? id,
+    String? userId,
+    String? businessName,
+    String? image,
+    String? description,
+    double? rating,
+    int? totalReviews,
+    bool? isAvailable,
+    List<Review>? reviews,
+    Location? location,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  });
 }
-

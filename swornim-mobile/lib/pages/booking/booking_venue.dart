@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swornim/pages/models/booking.dart';
-import 'package:swornim/pages/models/service_providers/venue.dart';
+import 'package:swornim/pages/providers/service_providers/models/venue.dart';
 
 class BookingPage extends StatefulWidget {
   final Venue venue;
@@ -173,7 +173,7 @@ class _BookingPageState extends State<BookingPage> with TickerProviderStateMixin
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.venue.name,
+                widget.venue.businessName,
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -666,7 +666,7 @@ class _BookingPageState extends State<BookingPage> with TickerProviderStateMixin
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Venue: ${widget.venue.name}',
+                    'Venue: ${widget.venue.businessName}',
                     style: GoogleFonts.inter(fontSize: 12),
                   ),
                   Text(

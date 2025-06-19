@@ -1,4 +1,6 @@
 // layouts/main_layout.dart
+
+//THis format will be used for the main layout of the app, which includes a custom app bar, a footer, and optional floating action buttons.
 import 'package:flutter/material.dart';
 import 'package:swornim/pages/components/common/app_bar/custom_app_bar.dart';
 import '../components/common/navigation/bottom_navigation.dart';
