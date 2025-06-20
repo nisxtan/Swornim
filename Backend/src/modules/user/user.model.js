@@ -32,6 +32,11 @@ const User = sequelize.define(
       allowNull: true,
       field: "profile_image",
     },
+    profileImagePublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: "profile_image_public_id",
+    },
     userType: {
       type: DataTypes.ENUM(
         UserType.CLIENT,

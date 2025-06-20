@@ -1,5 +1,6 @@
 const userSvc = require("./user.service");
 const { deleteFile } = require("../../utilities/helpers");
+const cloudinarySvc = require("../../services/cloudinary.service");
 
 class UserController {
   async getAllUsers(req, res, next) {
@@ -73,11 +74,6 @@ class UserController {
       const { id } = req.params;
       const updateData = req.body;
 
-      // Handle profile image upload
-      if (req.file) {
-        updateData.profileImage = req.file.path;
-      }
-
       const user = await userSvc.getSingleRowByFilter({ id });
       if (!user) {
         throw {
@@ -87,9 +83,16 @@ class UserController {
         };
       }
 
-      // Delete old profile image if new one is uploaded
-      if (req.file && user.profileImage) {
-        deleteFile(user.profileImage);
+      // Handle profile image upload to Cloudinary
+      if (req.file) {
+        // Delete old image from Cloudinary if publicId is stored
+        if (user.profileImagePublicId) {
+          await cloudinarySvc.deleteFile(user.profileImagePublicId);
+        }
+        // Upload new image
+        const uploadResult = await cloudinarySvc.fileUpload(req.file.path, "users/profiles/");
+        updateData.profileImage = uploadResult.url;
+        updateData.profileImagePublicId = uploadResult.publicId;
       }
 
       const updatedUser = await userSvc.updateSingleRowByFilter(updateData, {
