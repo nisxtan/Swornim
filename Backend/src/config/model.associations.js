@@ -3,6 +3,7 @@ const Photographer = require("../modules/photographer/photographer.model");
 const MakeupArtist = require("../modules/makeupartist/makeupartist.model");
 const Caterer = require("../modules/caterer/caterer.model");
 const Decorator = require("../modules/decorator/decorator.model");
+const Venue = require("../modules/venue/venue.model");
 
 // User - Photographer
 User.hasOne(Photographer, {
@@ -62,10 +63,25 @@ Decorator.belongsTo(User, {
   onUpdate: "CASCADE",
 });
 
+// User - Venue
+User.hasOne(Venue, {
+  foreignKey: "userId",
+  as: "venue",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+Venue.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+
 module.exports = {
   User,
   Photographer,
   MakeupArtist,
   Caterer,
   Decorator,
+  Venue,
 };
