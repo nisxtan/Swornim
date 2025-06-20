@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swornim/pages/providers/auth/auth_provider.dart';
 import 'package:swornim/pages/providers/service_providers/models/base_service_provider.dart';
-import 'package:swornim/pages/models/service_providers/service_provider_factory.dart';
 import 'package:swornim/pages/providers/service_providers/service_provider_factory.dart';
 
 // Exception handling
@@ -48,10 +47,10 @@ class ServiceProviderManager {
   final Ref ref;
   static bool _isRefreshing = false;
   
-  // Update base URL to match Django server
+  // Update base URL to match Node.js backend
   final String baseUrl = kDebugMode 
-      ? 'http://10.0.2.2:8000/api'  // Django server without v1 prefix
-      : 'https://your-production-domain.com/api';
+      ? 'http://10.0.2.2:9009/api/v1'  // Node.js backend
+      : 'https://your-production-domain.com/api/v1';
 
   ServiceProviderManager(this.ref);
 
@@ -261,8 +260,46 @@ class ServiceProviderManager {
       final response = await _makeRequest('GET', endpoint, queryParams: filters);
       
       final providers = _handleResponse<List<ServiceProvider>>(response, (data) {
+        // For photographers, handle nested structure
+        if (type == ServiceProviderType.photographer) {
+          if (data is Map && data['data'] != null && data['data']['photographers'] != null) {
+            return (data['data']['photographers'] as List<dynamic>)
+                .map((json) => ServiceProviderFactory.fromJson(json, type))
+                .where((provider) => provider != null)
+                .cast<ServiceProvider>()
+                .toList();
+          }
+        }
+        // For makeup artists, handle nested structure
+        if (type == ServiceProviderType.makeupArtist) {
+          if (data is Map && data['data'] != null && data['data']['makeupArtists'] != null) {
+            return (data['data']['makeupArtists'] as List<dynamic>)
+                .map((json) => ServiceProviderFactory.fromJson(json, type))
+                .where((provider) => provider != null)
+                .cast<ServiceProvider>()
+                .toList();
+          }
+          // fallback for snake_case
+          if (data is Map && data['data'] != null && data['data']['makeup_artists'] != null) {
+            return (data['data']['makeup_artists'] as List<dynamic>)
+                .map((json) => ServiceProviderFactory.fromJson(json, type))
+                .where((provider) => provider != null)
+                .cast<ServiceProvider>()
+                .toList();
+          }
+        }
+        // For decorators, handle nested structure
+        if (type == ServiceProviderType.decorator) {
+          if (data is Map && data['data'] != null && data['data']['decorators'] != null) {
+            return (data['data']['decorators'] as List<dynamic>)
+                .map((json) => ServiceProviderFactory.fromJson(json, type))
+                .where((provider) => provider != null)
+                .cast<ServiceProvider>()
+                .toList();
+          }
+        }
+        // Default for other types
         final List<dynamic> results = data is Map ? data['results'] ?? data['data'] ?? data : data;
-        
         return results
             .map((json) => ServiceProviderFactory.fromJson(json, type))
             .where((provider) => provider != null)

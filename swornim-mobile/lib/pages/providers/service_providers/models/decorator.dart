@@ -1,18 +1,18 @@
-import 'package:swornim/pages/providers/service_providers/models/base_service_provider.dart';
-import 'package:swornim/pages/models/review.dart';
 import 'package:swornim/pages/models/location.dart';
+import 'package:swornim/pages/models/review.dart';
+import 'package:swornim/pages/providers/service_providers/models/base_service_provider.dart';
 
 class Decorator extends ServiceProvider {
-  final List<String> specializations; // ['wedding', 'birthday', 'corporate', 'festivals']
-  final List<String> themes; // Available decoration themes
+  final List<String> specializations;
+  final List<String> themes;
   final double packageStartingPrice;
   final double hourlyRate;
   final List<String> portfolio;
   final int experienceYears;
   final bool offersFlowerArrangements;
   final bool offersLighting;
-  final bool offersRentals; // Tables, chairs, etc.
-  final List<String> availableItems; // Inventory items
+  final bool offersRentals;
+  final List<String> availableItems;
   final List<String> availableDates;
 
   const Decorator({
@@ -30,8 +30,8 @@ class Decorator extends ServiceProvider {
     required super.updatedAt,
     this.specializations = const [],
     this.themes = const [],
-    required this.packageStartingPrice,
-    required this.hourlyRate,
+    this.packageStartingPrice = 0.0,
+    this.hourlyRate = 0.0,
     this.portfolio = const [],
     this.experienceYears = 0,
     this.offersFlowerArrangements = false,
@@ -66,21 +66,26 @@ class Decorator extends ServiceProvider {
       id: json['id'],
       userId: json['user_id'],
       businessName: json['business_name'],
-      image: json['image'],
+      image: json['image'] ?? '',
       description: json['description'],
-      rating: (json['rating'] ?? 0.0).toDouble(),
-      totalReviews: json['total_reviews'] ?? 0,
-      isAvailable: json['is_available'] ?? true,
-      reviews: (json['reviews'] as List<dynamic>?)?.map((r) => Review.fromJson(r)).toList() ?? [],
-      location: json['location'] != null ? Location.fromJson(json['location']) : null,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+      totalReviews: (json['total_reviews'] as num?)?.toInt() ?? 0,
+      isAvailable: json['is_available'] ?? false,
+      reviews: (json['reviews'] as List<dynamic>?)
+              ?.map((r) => Review.fromJson(r))
+              .toList() ??
+          [],
+      location:
+          json['location'] != null ? Location.fromJson(json['location']) : null,
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
       specializations: List<String>.from(json['specializations'] ?? []),
       themes: List<String>.from(json['themes'] ?? []),
-      packageStartingPrice: (json['package_starting_price'] ?? 0.0).toDouble(),
-      hourlyRate: (json['hourly_rate'] ?? 0.0).toDouble(),
+      packageStartingPrice:
+          (json['package_starting_price'] as num?)?.toDouble() ?? 0.0,
+      hourlyRate: (json['hourly_rate'] as num?)?.toDouble() ?? 0.0,
       portfolio: List<String>.from(json['portfolio'] ?? []),
-      experienceYears: json['experience_years'] ?? 0,
+      experienceYears: (json['experience_years'] as num?)?.toInt() ?? 0,
       offersFlowerArrangements: json['offers_flower_arrangements'] ?? false,
       offersLighting: json['offers_lighting'] ?? false,
       offersRentals: json['offers_rentals'] ?? false,
@@ -134,7 +139,8 @@ class Decorator extends ServiceProvider {
       hourlyRate: hourlyRate ?? this.hourlyRate,
       portfolio: portfolio ?? this.portfolio,
       experienceYears: experienceYears ?? this.experienceYears,
-      offersFlowerArrangements: offersFlowerArrangements ?? this.offersFlowerArrangements,
+      offersFlowerArrangements:
+          offersFlowerArrangements ?? this.offersFlowerArrangements,
       offersLighting: offersLighting ?? this.offersLighting,
       offersRentals: offersRentals ?? this.offersRentals,
       availableItems: availableItems ?? this.availableItems,

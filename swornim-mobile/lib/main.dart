@@ -313,8 +313,8 @@ class MyApp extends ConsumerWidget {
 
         // home: const PhotographerDashboard(),
         // home: const ClientDashboard(),
-        // home: const WelcomeScreen(),
-        home: LoginPage(onSignupClicked: () {  },)
+        home: const WelcomeScreen(),
+        // home: LoginPage(onSignupClicked: () {  },)
       ),
     );
   }

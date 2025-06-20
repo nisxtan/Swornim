@@ -50,7 +50,7 @@ class _PhotographerDashboardState extends State<PhotographerDashboard> with Sing
   Future<void> _checkPhotographerProfile() async {
     final token = await getAccessToken();
     final response = await http.get(
-      Uri.parse('http://localhost:9009/api/v1/photographers/profile/me'),
+      Uri.parse('http://10.0.2.2:9009/api/v1/photographers/profile/me'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

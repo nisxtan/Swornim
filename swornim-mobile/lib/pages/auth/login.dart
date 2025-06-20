@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swornim/pages/Client/ClientDashboard.dart';
+import 'package:swornim/pages/models/user/user.dart';
 import 'package:swornim/pages/models/user/user_types.dart';
 import 'package:swornim/pages/providers/auth/auth_provider.dart';
 import 'package:swornim/pages/service_providers/photographer/photographer_dashboard.dart';
+import 'package:swornim/pages/service_providers/photographer/photographer_profile_form.dart';
 import 'signup.dart'; // Make sure this exists
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:swornim/pages/service_providers/makeupartist/makeupartist_profile_form.dart';
+import 'package:swornim/pages/service_providers/decorator/decorator_profile_form.dart';
 // Import your auth provider - adjust the path as needed
 // import 'package:swornim/providers/auth_provider.dart';
 
@@ -117,7 +123,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
           );
 
           // Navigate based on user type
-          _navigateToUserDashboard(user.userType);
+          _onLoginSuccess(user);
         }
       } else if (result.requiresVerification) {
         // Handle email verification required
@@ -144,29 +150,84 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
     }
   }
 
-  void _navigateToUserDashboard(UserType userType) {
-    Widget dashboardPage;
-    
-    switch (userType) {
-      case UserType.client:
-        dashboardPage = const ClientDashboard();
-        break;
-      case UserType.photographer:
-        // Replace with your vendor dashboard
-        dashboardPage = const PhotographerDashboard(); // Temporary
-        break;
-      case UserType.makeupArtist:
-        // Replace with your admin dashboard
-        dashboardPage = const ClientDashboard(); // Temporary
-        break;
-      default:
-        dashboardPage = const ClientDashboard();
-    }
+  Future<String> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('access_token') ?? '';
+  }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => dashboardPage),
+  Future<void> _afterPhotographerLogin() async {
+    final token = await getAccessToken();
+    print('DEBUG: Token before protected request: $token');
+    final response = await http.get(
+      Uri.parse('http://10.0.2.2:9009/api/v1/photographers/profile/me'),
+      headers: {'Authorization': 'Bearer $token'},
     );
+    if (response.statusCode == 404) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhotographerProfileForm()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhotographerDashboard()),
+      );
+    }
+  }
+
+  Future<void> _afterMakeupArtistLogin() async {
+    final token = await getAccessToken();
+    final response = await http.get(
+      Uri.parse('http://10.0.2.2:9009/api/v1/makeup-artists/profile/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 404) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MakeupArtistProfileForm()),
+      );
+    } else {
+      // TODO: Replace with MakeupArtistDashboard when implemented
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhotographerDashboard()),
+      );
+    }
+  }
+
+  Future<void> _afterDecoratorLogin() async {
+    final token = await getAccessToken();
+    final response = await http.get(
+      Uri.parse('http://10.0.2.2:9009/api/v1/decorators/profile/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 404) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DecoratorProfileForm()),
+      );
+    } else {
+      // TODO: Replace with DecoratorDashboard when implemented
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhotographerDashboard()),
+      );
+    }
+  }
+
+  void _onLoginSuccess(User user) async {
+    if (user.userType == UserType.photographer) {
+      await _afterPhotographerLogin();
+    } else if (user.userType == UserType.makeupArtist) {
+      await _afterMakeupArtistLogin();
+    } else if (user.userType == UserType.decorator) {
+      await _afterDecoratorLogin();
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ClientDashboard()),
+      );
+    }
   }
 
   void _showEmailVerificationDialog(user) {

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swornim/pages/Client/ClientDashboard.dart';
+import 'package:swornim/pages/models/user/user.dart';
 import 'package:swornim/pages/models/user/user_types.dart';
 import 'package:swornim/pages/providers/auth/auth_provider.dart';
+import 'package:swornim/pages/service_providers/photographer/photographer_profile_form.dart';
+import 'package:swornim/pages/service_providers/decorator/decorator_profile_form.dart';
 import 'package:swornim/pages/widgets/auth/logo_section.dart';
 import 'package:swornim/pages/widgets/auth/role_selection.dart';
 import 'package:swornim/pages/widgets/auth/signup_form.dart';
 import 'package:swornim/pages/widgets/common/custom_button.dart';
 import 'login.dart';
+
 
 class SignupPage extends ConsumerStatefulWidget {
   final VoidCallback? onLoginClicked;
@@ -59,6 +64,13 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       'description': 'Offer makeup services',
       'userType': UserType.makeupArtist,
     },
+    'decorator': {
+      'title': 'Decorator',
+      'icon': Icons.celebration_outlined,
+      'color': const Color(0xFFFB923C),
+      'description': 'Offer decoration services',
+      'userType': UserType.decorator,
+    },
   };
 
   @override
@@ -107,10 +119,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
             );
 
             // Navigate to login page after successful signup
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => LoginPage(onSignupClicked: () {})),
-            );
+            _navigateToLogin();
           }
         }
       } catch (e) {
@@ -144,6 +153,25 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       context,
       MaterialPageRoute(builder: (context) => LoginPage(onSignupClicked: () {})),
     );
+  }
+
+  void _onSignupSuccess(User user) {
+    if (user.userType == UserType.photographer) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhotographerProfileForm()),
+      );
+    } else if (user.userType == UserType.decorator) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DecoratorProfileForm()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ClientDashboard()),
+      );
+    }
   }
 
   @override

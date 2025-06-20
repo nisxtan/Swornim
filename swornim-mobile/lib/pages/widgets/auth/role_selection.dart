@@ -45,6 +45,14 @@ class RoleSelection extends StatelessWidget {
                 Expanded(child: _buildRoleCard('makeup_artist')),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildRoleCard('decorator')),
+                const SizedBox(width: 12),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
           ],
         ),
         

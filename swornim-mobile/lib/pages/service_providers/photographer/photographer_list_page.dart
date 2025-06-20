@@ -5,6 +5,7 @@ import 'package:swornim/pages/providers/service_providers/models/base_service_pr
 import 'package:swornim/pages/providers/service_providers/models/photographer.dart';
 import 'package:swornim/pages/providers/service_providers/service_provider_factory.dart';
 import 'package:swornim/pages/providers/service_providers/service_provider_manager.dart';
+import 'package:swornim/pages/service_providers/photographer/photographer_detail_page.dart';
 
 class PhotographerListPage extends ConsumerStatefulWidget {
   const PhotographerListPage({super.key});
@@ -13,20 +14,107 @@ class PhotographerListPage extends ConsumerStatefulWidget {
   ConsumerState<PhotographerListPage> createState() => _PhotographerListPageState();
 }
 
-class _PhotographerListPageState extends ConsumerState<PhotographerListPage> {
+class _PhotographerListPageState extends ConsumerState<PhotographerListPage>
+    with TickerProviderStateMixin {
+  // Search and filter state
   String _searchQuery = '';
   String _selectedSpecialization = 'All';
   String _selectedLocation = 'All';
   double _minRating = 0.0;
   bool _showFilters = false;
+  String _sortBy = 'rating'; // rating, price, name
   
-  final List<String> _specializations = [
-    'All', 'wedding', 'portrait', 'event', 'commercial', 'fashion', 'product'
+  // Animation controllers
+  late AnimationController _animationController;
+  late AnimationController _filterAnimationController;
+  late AnimationController _staggerController;
+  
+  // Animations
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _filterSlideAnimation;
+  
+  // Filter options
+  static const List<String> _specializations = [
+    'All', 'wedding', 'portrait', 'event', 'commercial', 'fashion', 'product', 'nature', 'street'
   ];
   
-  final List<String> _locations = [
-    'All', 'Kathmandu', 'Lalitpur', 'Bhaktapur', 'Pokhara', 'Chitwan'
+  static const List<String> _locations = [
+    'All', 'Kathmandu', 'Lalitpur', 'Bhaktapur', 'Pokhara', 'Chitwan', 'Butwal', 'Biratnagar'
   ];
+
+  static const List<Map<String, String>> _sortOptions = [
+    {'key': 'rating', 'label': 'Highest Rated', 'icon': 'star'},
+    {'key': 'price_low', 'label': 'Price: Low to High', 'icon': 'arrow_upward'},
+    {'key': 'price_high', 'label': 'Price: High to Low', 'icon': 'arrow_downward'},
+    {'key': 'name', 'label': 'Name A-Z', 'icon': 'sort_by_alpha'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _setupAnimations();
+    _animationController.forward();
+  }
+
+  void _setupAnimations() {
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    
+    _filterAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    
+    _staggerController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+    );
+    
+    _slideAnimation = Tween<double>(begin: 60.0, end: 0.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+    );
+    
+    _filterSlideAnimation = CurvedAnimation(
+      parent: _filterAnimationController,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _filterAnimationController.dispose();
+    _staggerController.dispose();
+    super.dispose();
+  }
+
+  void _toggleFilters() {
+    setState(() {
+      _showFilters = !_showFilters;
+    });
+    if (_showFilters) {
+      _filterAnimationController.forward();
+    } else {
+      _filterAnimationController.reverse();
+    }
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _searchQuery = '';
+      _selectedSpecialization = 'All';
+      _selectedLocation = 'All';
+      _minRating = 0.0;
+      _sortBy = 'rating';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,1465 +122,1263 @@ class _PhotographerListPageState extends ConsumerState<PhotographerListPage> {
     final photographersAsync = ref.watch(serviceProvidersProvider(ServiceProviderType.photographer));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      appBar: _buildAppBar(theme),
-      body: Column(
-        children: [
-          _buildSearchAndFilter(theme),
-          if (_showFilters) _buildFilterPanel(theme),
-          Expanded(
-            child: photographersAsync.when(
-              data: (providers) {
-                final photographers = providers.whereType<Photographer>().toList();
-                final filteredPhotographers = _filterPhotographers(photographers);
-                
-                if (filteredPhotographers.isEmpty) {
-                  return _buildEmptyState(theme);
-                }
-                
-                return _buildPhotographersList(filteredPhotographers, theme);
-              },
-              loading: () => _buildLoadingState(),
-              error: (error, stack) => _buildErrorState(error, theme),
-            ),
-          ),
-        ],
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(serviceProvidersProvider(ServiceProviderType.photographer));
+        },
+        color: theme.colorScheme.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            _buildEnhancedAppBar(theme),
+            _buildSearchAndQuickFilters(theme),
+            if (_showFilters) _buildAdvancedFiltersPanel(theme),
+            _buildResultsHeader(theme, photographersAsync),
+            _buildPhotographersContent(photographersAsync, theme),
+          ],
+        ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(ThemeData theme) {
-    return AppBar(
-      title: Text(
-        'Photographers',
-        style: theme.textTheme.headlineMedium?.copyWith(
-          color: const Color(0xFF1E293B),
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      backgroundColor: Colors.white,
+  Widget _buildEnhancedAppBar(ThemeData theme) {
+    return SliverAppBar(
+      expandedHeight: 180,
+      floating: false,
+      pinned: true,
+      backgroundColor: theme.colorScheme.primary,
+      foregroundColor: Colors.white,
       elevation: 0,
-      centerTitle: true,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF475569)),
-        onPressed: () => Navigator.pop(context),
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _showFilters ? Icons.filter_list_off : Icons.filter_list,
-            color: const Color(0xFF475569),
-          ),
-          onPressed: () => setState(() => _showFilters = !_showFilters),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchAndFilter(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.secondary,
+              ],
             ),
-            child: TextField(
-              onChanged: (value) => setState(() => _searchQuery = value),
-              decoration: InputDecoration(
-                hintText: 'Search photographers...',
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                hintStyle: GoogleFonts.inter(
-                  color: const Color(0xFF94A3B8),
-                  fontSize: 14,
+          ),
+          child: Stack(
+            children: [
+              // Animated background patterns
+              ...List.generate(3, (index) => Positioned(
+                right: -30 - (index * 40),
+                top: 40 + (index * 30),
+                child: AnimatedBuilder(
+                  animation: _animationController,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _animationController.value * 0.1 * (index + 1),
+                      child: Container(
+                        width: 120 - (index * 20),
+                        height: 120 - (index * 20),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.05 + (index * 0.03)),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )),
+              
+              // Main icon
+              Positioned(
+                right: 24,
+                top: 70,
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: Colors.white.withOpacity(0.15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Colors.white,
+                    size: 45,
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickFilter('Wedding', 'wedding'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildQuickFilter('Portrait', 'portrait'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildQuickFilter('Event', 'event'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickFilter(String label, String value) {
-    final isSelected = _selectedSpecialization == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedSpecialization = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterPanel(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Filters',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Specialization',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _specializations.map((spec) => _buildFilterChip(spec)).toList(),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Location',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _locations.map((loc) => _buildFilterChip(loc)).toList(),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Minimum Rating',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Slider(
-            value: _minRating,
-            min: 0,
-            max: 5,
-            divisions: 5,
-            label: _minRating.toStringAsFixed(1),
-            onChanged: (value) => setState(() => _minRating = value),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label) {
-    final isSelected = _selectedSpecialization == label || _selectedLocation == label;
-    return FilterChip(
-      label: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: isSelected ? Colors.white : const Color(0xFF64748B),
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          if (_specializations.contains(label)) {
-            _selectedSpecialization = selected ? label : 'All';
-          } else if (_locations.contains(label)) {
-            _selectedLocation = selected ? label : 'All';
-          }
-        });
-      },
-      backgroundColor: const Color(0xFFF1F5F9),
-      selectedColor: const Color(0xFF2563EB),
-      checkmarkColor: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    );
-  }
-
-  Widget _buildPhotographersList(List<Photographer> photographers, ThemeData theme) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: photographers.length,
-      itemBuilder: (context, index) {
-        final photographer = photographers[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (photographer.image != null && photographer.image!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.network(
-                    photographer.image!,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 200,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Icon(Icons.image_not_supported, size: 48, color: Color(0xFF94A3B8)),
+              
+              // Title content
+              Positioned(
+                left: 20,
+                bottom: 24,
+                right: 140,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Transform.translate(
+                    offset: Offset(0, _slideAnimation.value),
+                    child: Text(
+                      'Photographers',
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.all(16),
+              ),
+            ],
+          ),
+        ),
+      ),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios_rounded, color: theme.colorScheme.onPrimary),
+        onPressed: () => Navigator.pop(context),
+      ),
+      actions: [
+        IconButton(
+          icon: AnimatedRotation(
+            turns: _showFilters ? 0.25 : 0.0,
+            duration: const Duration(milliseconds: 300),
+            child: Icon(
+              _showFilters ? Icons.filter_list_off_rounded : Icons.filter_list_rounded,
+              color: theme.colorScheme.onPrimary,
+            ),
+          ),
+          onPressed: _toggleFilters,
+          tooltip: _showFilters ? 'Hide Filters' : 'Show Filters',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildSearchAndQuickFilters(ThemeData theme) {
+    return SliverToBoxAdapter(
+      child: AnimatedBuilder(
+        animation: _animationController,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(0, _slideAnimation.value * 0.8),
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            photographer.businessName,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF1E293B),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: photographer.isAvailable ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            photographer.isAvailable ? 'Available' : 'Unavailable',
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (photographer.description != null && photographer.description!.isNotEmpty)
-                      Text(
-                        photographer.description!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF64748B),
+                    // Enhanced Search Bar
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.dividerColor,
+                          width: 1,
                         ),
                       ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.star, color: const Color(0xFFF59E0B), size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          photographer.rating.toStringAsFixed(1),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF1E293B),
-                            fontWeight: FontWeight.w500,
+                      child: TextField(
+                        onChanged: (value) => setState(() => _searchQuery = value),
+                        style: theme.textTheme.bodyMedium,
+                        decoration: InputDecoration(
+                          hintText: 'Search photographers, specializations, locations...',
+                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 22,
+                          ),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(
+                                    Icons.clear_rounded,
+                                    color: theme.iconTheme.color,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _searchQuery = ''),
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '(${photographer.totalReviews} reviews)',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (photographer.specializations.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: photographer.specializations.map((spec) => _buildSpecializationChip(spec)).toList(),
                       ),
-                      const SizedBox(height: 12),
-                    ],
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Quick Filter Pills
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hourly Rate',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                            Text(
-                              'Rs. ${photographer.hourlyRate.toStringAsFixed(0)}',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: const Color(0xFF1E293B),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            // TODO: Implement booking functionality
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text('Book Now'),
-                        ),
+                        Expanded(child: _buildQuickFilterPill('Wedding', 'wedding', Icons.favorite_rounded)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildQuickFilterPill('Portrait', 'portrait', Icons.person_rounded)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildQuickFilterPill('Event', 'event', Icons.event_rounded)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildQuickFilterPill('Fashion', 'fashion', Icons.style_rounded)),
                       ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildSpecializationChip(String specialization) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        specialization.capitalize(),
-        style: GoogleFonts.inter(
-          color: const Color(0xFF2563EB),
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
+  Widget _buildQuickFilterPill(String label, String value, IconData icon) {
+    final theme = Theme.of(context);
+    final isSelected = _selectedSpecialization == value;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _selectedSpecialization = isSelected ? 'All' : value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected 
+              ? LinearGradient(
+                  colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : theme.scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected 
+                ? Colors.transparent 
+                : theme.dividerColor,
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? Colors.white : theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: const Color(0xFF94A3B8),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No photographers found',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w600,
+  Widget _buildAdvancedFiltersPanel(ThemeData theme) {
+    return SliverToBoxAdapter(
+      child: AnimatedBuilder(
+        animation: _filterSlideAnimation,
+        builder: (context, child) {
+          return ClipRect(
+            child: Align(
+              heightFactor: _filterSlideAnimation.value,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.tune_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Advanced Filters',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: _clearAllFilters,
+                          child: Text(
+                            'Clear All',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Filter sections
+                    _buildFilterSection(
+                      'Specialization',
+                      Icons.camera_rounded,
+                      _specializations,
+                      _selectedSpecialization,
+                      (value) => setState(() => _selectedSpecialization = value),
+                      theme,
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildFilterSection(
+                      'Location',
+                      Icons.location_on_rounded,
+                      _locations,
+                      _selectedLocation,
+                      (value) => setState(() => _selectedLocation = value),
+                      theme,
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Rating filter
+                    _buildRatingFilter(theme),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Sort options
+                    _buildSortSection(theme),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your filters or search query',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
-      child: CircularProgressIndicator(),
+  Widget _buildFilterSection(
+    String title,
+    IconData icon,
+    List<String> options,
+    String selectedValue,
+    Function(String) onChanged,
+    ThemeData theme,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) => _buildFilterChip(option, selectedValue, onChanged, theme)).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String option, String selectedValue, Function(String) onChanged, ThemeData theme) {
+    final isSelected = selectedValue == option;
+    return GestureDetector(
+      onTap: () => onChanged(option),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : theme.scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.primary : theme.dividerColor,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          option,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingFilter(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.star_rounded, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Minimum Rating',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_minRating.toStringAsFixed(1)} ⭐',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: theme.colorScheme.primary,
+            inactiveTrackColor: theme.dividerColor,
+            thumbColor: theme.colorScheme.primary,
+            overlayColor: theme.colorScheme.primary.withOpacity(0.1),
+            trackHeight: 4,
+          ),
+          child: Slider(
+            value: _minRating,
+            min: 0,
+            max: 5,
+            divisions: 10,
+            onChanged: (value) => setState(() => _minRating = value),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSortSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.sort_rounded, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Sort By',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _sortOptions.map((option) => _buildSortChip(option, theme)).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSortChip(Map<String, String> option, ThemeData theme) {
+    final isSelected = _sortBy == option['key'];
+    final iconData = _getIconFromString(option['icon']!);
+    
+    return GestureDetector(
+      onTap: () => setState(() => _sortBy = option['key']!),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.secondary : theme.scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.secondary : theme.dividerColor,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              iconData,
+              size: 16,
+              color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              option['label']!,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIconFromString(String iconName) {
+    switch (iconName) {
+      case 'star': return Icons.star_rounded;
+      case 'arrow_upward': return Icons.arrow_upward_rounded;
+      case 'arrow_downward': return Icons.arrow_downward_rounded;
+      case 'sort_by_alpha': return Icons.sort_by_alpha_rounded;
+      default: return Icons.sort_rounded;
+    }
+  }
+
+  Widget _buildResultsHeader(ThemeData theme, AsyncValue photographersAsync) {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Available Photographers',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                photographersAsync.when(
+                  data: (providers) {
+                    final photographers = providers.whereType<Photographer>().toList();
+                    final filteredCount = _filterAndSortPhotographers(photographers).length;
+                    return Text(
+                      '$filteredCount ${filteredCount == 1 ? 'photographer' : 'photographers'} found',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    );
+                  },
+                  loading: () => Text(
+                    'Loading...',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  error: (_, __) => Text(
+                    'Error loading',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.1),
+                    theme.colorScheme.secondary.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.verified_rounded,
+                    size: 14,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Verified',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotographersContent(AsyncValue photographersAsync, ThemeData theme) {
+    return photographersAsync.when(
+      data: (providers) {
+        final photographers = providers.whereType<Photographer>().toList();
+        final filteredPhotographers = _filterAndSortPhotographers(photographers);
+        
+        if (filteredPhotographers.isEmpty) {
+          return _buildEmptyState(theme);
+        }
+        
+        return _buildPhotographersList(filteredPhotographers, theme);
+      },
+      loading: () => _buildLoadingState(theme),
+      error: (error, stack) => _buildErrorState(error, theme),
+    );
+  }
+
+  Widget _buildPhotographersList(List<Photographer> photographers, ThemeData theme) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          return AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              final delay = index * 0.1;
+              final animationValue = Tween<double>(
+                begin: 0.0,
+                end: 1.0,
+              ).animate(
+                CurvedAnimation(
+                  parent: _animationController,
+                  curve: Interval(
+                    delay,
+                    (delay + 0.4).clamp(0.0, 1.0),
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+              );
+
+              return FadeTransition(
+                opacity: animationValue,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - animationValue.value) * 30),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    child: _buildPhotographerCard(photographers[index], theme),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        childCount: photographers.length,
+      ),
+    );
+  }
+
+  Widget _buildPhotographerCard(Photographer photographer, ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.06),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PhotographerDetailPage(photographer: photographer),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with image and basic info
+                Row(
+                  children: [
+                    // Profile image
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary.withOpacity(0.8),
+                            theme.colorScheme.secondary.withOpacity(0.8),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: photographer.image.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.network(
+                                photographer.image,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildDefaultAvatar(theme),
+                              ),
+                            )
+                          : _buildDefaultAvatar(theme),
+                    ),
+                    
+                    const SizedBox(width: 16),
+                    
+                    // Name and basic info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  photographer.businessName,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (photographer.isAvailable)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 8),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.verified_rounded,
+                                    color: theme.colorScheme.primary,
+                                    size: 16,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 6),
+                          
+                          // Rating and reviews
+                          Row(
+                            children: [
+                              ...List.generate(5, (index) {
+                                return Icon(
+                                  index < photographer.rating.floor()
+                                      ? Icons.star_rounded
+                                      : index < photographer.rating
+                                          ? Icons.star_half_rounded
+                                          : Icons.star_outline_rounded,
+                                  color: Colors.amber[600],
+                                  size: 16,
+                                );
+                              }),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${photographer.rating.toStringAsFixed(1)} (${photographer.totalReviews} reviews)',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 4),
+                          
+                          // Location
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_rounded,
+                                size: 14,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                photographer.location?.name ?? '',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Specializations
+                if (photographer.specializations.isNotEmpty) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: photographer.specializations.take(4).map((spec) {
+                      final capSpec = spec.isNotEmpty ? spec[0].toUpperCase() + spec.substring(1) : spec;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.colorScheme.primary.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Text(
+                          capSpec,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Price and action
+                Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Starting from',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                        Text(
+                          'NPR ${photographer.hourlyRate.toStringAsFixed(0)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const Spacer(),
+                    
+                    // Action buttons
+                    Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: theme.scaffoldBackgroundColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.dividerColor,
+                            ),
+                          ),
+                          child: IconButton(
+                            onPressed: () {
+                              // Add to favorites functionality
+                            },
+                            icon: const Icon(Icons.favorite_border_rounded),
+                            iconSize: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 12),
+                        
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PhotographerDetailPage(photographer: photographer),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Detail',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.8),
+            theme.colorScheme.secondary.withOpacity(0.8),
+          ],
+        ),
+      ),
+      child: const Icon(
+        Icons.person_rounded,
+        color: Colors.white,
+        size: 32,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(60),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 60,
+                color: theme.colorScheme.primary.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No photographers found',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface.withOpacity(0.8),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try adjusting your filters or search terms',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _clearAllFilters,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text('Clear Filters'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(ThemeData theme) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          return Container(
+            margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: theme.dividerColor,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 20,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: theme.dividerColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 16,
+                            width: 120,
+                            decoration: BoxDecoration(
+                              color: theme.dividerColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      height: 16,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        color: theme.dividerColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      height: 36,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: theme.dividerColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+        childCount: 3,
+      ),
     );
   }
 
   Widget _buildErrorState(Object error, ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: const Color(0xFFEF4444),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Error loading photographers',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w600,
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(60),
+              ),
+              child: Icon(
+                Icons.error_outline_rounded,
+                size: 60,
+                color: theme.colorScheme.error,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error.toString(),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
+            const SizedBox(height: 24),
+            Text(
+              'Something went wrong',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface.withOpacity(0.8),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Please try again later',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                ref.invalidate(serviceProvidersProvider(ServiceProviderType.photographer));
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  List<Photographer> _filterPhotographers(List<Photographer> photographers) {
-    return photographers.where((photographer) {
-      // Search query filter
-      final query = _searchQuery.toLowerCase();
-      if (!(photographer.businessName.toLowerCase().contains(query)) &&
-          !(photographer.description?.toLowerCase()?.contains(query) ?? false)) {
-        return false;
+  List<Photographer> _filterAndSortPhotographers(List<Photographer> photographers) {
+    var filtered = photographers.where((photographer) {
+      // Search filter
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final matchesName = photographer.businessName.toLowerCase().contains(query);
+        final matchesLocation = (photographer.location?.name ?? '').toLowerCase().contains(query);
+        final matchesSpecialization = photographer.specializations
+            .any((spec) => spec.toLowerCase().contains(query));
+        
+        if (!matchesName && !matchesLocation && !matchesSpecialization) {
+          return false;
+        }
       }
-
+      
       // Specialization filter
-      if (_selectedSpecialization != 'All' &&
-          !photographer.specializations.contains(_selectedSpecialization)) {
-        return false;
+      if (_selectedSpecialization != 'All') {
+        if (!photographer.specializations.contains(_selectedSpecialization)) {
+          return false;
+        }
       }
-
+      
       // Location filter
-      if (_selectedLocation != 'All' &&
-          photographer.location?.city?.toLowerCase() != _selectedLocation.toLowerCase()) {
-        return false;
+      if (_selectedLocation != 'All') {
+        if ((photographer.location?.name ?? '') != _selectedLocation) {
+          return false;
+        }
       }
-
+      
       // Rating filter
       if (photographer.rating < _minRating) {
         return false;
       }
-
+      
       return true;
     }).toList();
+    
+    // Sort photographers
+    filtered.sort((a, b) {
+      switch (_sortBy) {
+        case 'rating':
+          return b.rating.compareTo(a.rating);
+        case 'price_low':
+          return a.hourlyRate.compareTo(b.hourlyRate);
+        case 'price_high':
+          return b.hourlyRate.compareTo(a.hourlyRate);
+        case 'name':
+          return a.businessName.compareTo(b.businessName);
+        default:
+          return b.rating.compareTo(a.rating);
+      }
+    });
+    
+    return filtered;
   }
 }
-
-extension StringExtension on String {
-  String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1)}";
-  }
-}
-
-// import 'package:flutter/material.dart';
-// import 'package:flutter/services.dart';
-// import 'package:swornim/pages/models/location.dart';
-// import 'package:swornim/pages/providers/service_providers/models/photographer.dart';
-// import 'package:swornim/pages/service_providers/photographer/photographer_detail_page.dart';
-
-// class PhotographerListPage extends StatefulWidget {
-//   const PhotographerListPage({super.key});
-
-//   @override
-//   State<PhotographerListPage> createState() => _PhotographerListPageState();
-// }
-
-// class _PhotographerListPageState extends State<PhotographerListPage>
-//     with TickerProviderStateMixin {
-//   final List<Photographer> photographers = [
-//     Photographer(
-//       id: '1',
-//       name: 'John Doe',
-//       image: 'assets/photographer1.jpg',
-//       // email: 'john.doe@email.com',
-//       // phone: '+1234567890',
-//       // bio: 'Experienced wedding and event photographer.',
-//       hourlyRate: 500.0,
-//       specialties: ['Wedding Photography', 'Event Coverage', 'Portraits'],
-//       experience: '8 years',
-//       location: Location(
-//         name: 'Downtown',
-//         latitude: 40.7128,
-//         longitude: -74.0060,
-//         address: '123 Main St',
-//         city: 'New York',
-//         state: 'NY',
-//         country: 'USA',
-//       ),
-//     ),
-//     Photographer(
-//       id: '2',
-//       name: 'Jane Smith',
-//       image: 'assets/photographer2.jpg',
-//       // email: 'jane.smith@email.com',
-//       // phone: '+1234567891',
-//       // bio: 'Fashion and editorial specialist.',
-//       hourlyRate: 400.0,
-//       specialties: ['Fashion Shoots', 'Editorial', 'Product Photography'],
-//       experience: '6 years',
-//       location: Location(
-//         name: 'City Edge',
-//         latitude: 40.7589,
-//         longitude: -73.9851,
-//         address: '456 Fashion Ave',
-//         city: 'New York',
-//         state: 'NY',
-//         country: 'USA',
-//       ),
-//     ),
-//     Photographer(
-//       id: '3',
-//       name: 'Alex Johnson',
-//       // email: 'alex.johnson@email.com',
-//       // phone: '+1234567892',
-//       // bio: 'Nature and corporate event photographer.',
-//       hourlyRate: 450.0,
-//       image: 'assets/photographer3.jpg',
-//       specialties: ['Nature Photography', 'Corporate Events'],
-//       experience: '5 years',
-//       location: Location(
-//         name: 'Lakeside',
-//         latitude: 40.7829,
-//         longitude: -73.9654,
-//         address: '789 Lakeside Drive',
-//         city: 'New York',
-//         state: 'NY',
-//         country: 'USA',
-//       ),
-//     ),
-//     Photographer(
-//       id: '4',
-//       name: 'Alisson Becker',
-//       // email: 'alisson.becker@email.com',
-//       // phone: '+1234567893',
-//       // bio: 'Nature and corporate event photographer.',
-//       hourlyRate: 450.0,
-//       image: 'assets/photographer4.jpg',
-//       specialties: ['Nature Photography', 'Corporate Events'],
-//       experience: '7 years',
-//       location: Location(
-//         name: 'Lakeside West',
-//         latitude: 40.7423,
-//         longitude: -73.9711,
-//         address: '321 West Lake Ave',
-//         city: 'New York',
-//         state: 'NY',
-//         country: 'USA',
-//       ),
-//     ),
-//     Photographer(
-//       id: '5',
-//       name: 'Lio Nischu',
-//       // email: 'lio.nischu@email.com',
-//       // phone: '+1234567894',
-//       // bio: 'Nature and corporate event photographer.',
-//       hourlyRate: 450.0,
-//       image: 'assets/photographer5.jpg',
-//       specialties: ['Nature Photography', 'Corporate Events'],
-//       experience: '4 years',
-//       location: Location(
-//         name: 'Lakeside East',
-//         latitude: 40.7614,
-//         longitude: -73.9776,
-//         address: '456 East Lake Blvd',
-//         city: 'New York',
-//         state: 'NY',
-//         country: 'USA',
-//       ),
-//     ),
-//   ];
-
-//   List<Photographer> filteredPhotographers = [];
-//   String searchQuery = '';
-//   String selectedFilter = 'All';
-//   final TextEditingController _searchController = TextEditingController();
-//   late AnimationController _animationController;
-//   late Animation<double> _fadeAnimation;
-//   final FocusNode _searchFocusNode = FocusNode();
-
-//   final List<String> filterOptions = [
-//     'All',
-//     'Wedding',
-//     'Fashion',
-//     'Nature',
-//     'Corporate',
-//     'Portrait'
-//   ];
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     filteredPhotographers = photographers;
-//     _animationController = AnimationController(
-//       duration: const Duration(milliseconds: 400),
-//       vsync: this,
-//     );
-//     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-//       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-//     );
-//     _animationController.forward();
-//   }
-
-//   @override
-//   void dispose() {
-//     _searchController.dispose();
-//     _animationController.dispose();
-//     _searchFocusNode.dispose();
-//     super.dispose();
-//   }
-
-//   void filterPhotographers(String query, [String? filter]) {
-//     final filterValue = filter ?? selectedFilter;
-
-//     final results = photographers.where((photographer) {
-//       final name = photographer.name.toLowerCase();
-//       final location = photographer.location?.name.toLowerCase() ?? '';
-//       final specialties = photographer.specialties.join(' ').toLowerCase();
-//       final input = query.toLowerCase();
-
-//       bool matchesSearch = query.isEmpty ||
-//           name.contains(input) ||
-//           location.contains(input) ||
-//           specialties.contains(input);
-
-//       bool matchesFilter = filterValue == 'All' ||
-//           specialties.contains(filterValue.toLowerCase());
-
-//       return matchesSearch && matchesFilter;
-//     }).toList();
-
-//     setState(() {
-//       searchQuery = query;
-//       selectedFilter = filterValue;
-//       filteredPhotographers = results;
-//     });
-//   }
-
-//   void clearSearch() {
-//     _searchController.clear();
-//     _searchFocusNode.unfocus();
-//     filterPhotographers('', 'All');
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final theme = Theme.of(context);
-
-//     return Scaffold(
-//       backgroundColor: theme.colorScheme.background,
-//       body: CustomScrollView(
-//         slivers: [
-//           // Professional App Bar with theme colors
-//           SliverAppBar(
-//             expandedHeight: 160,
-//             floating: false,
-//             pinned: true,
-//             backgroundColor: Colors.white,
-//             foregroundColor: theme.colorScheme.onSurface,
-//             elevation: 0,
-//             shadowColor: Colors.transparent,
-//             surfaceTintColor: Colors.transparent,
-//             systemOverlayStyle: SystemUiOverlayStyle(
-//               statusBarColor: Colors.transparent,
-//               statusBarIconBrightness: Brightness.dark,
-//             ),
-//             flexibleSpace: FlexibleSpaceBar(
-//               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-//               title: Text(
-//                 'Find Photographers',
-//                 style: theme.textTheme.headlineLarge?.copyWith(
-//                   fontSize: 22,
-//                   fontWeight: FontWeight.w700,
-//                   letterSpacing: -0.5,
-//                 ),
-//               ),
-//               background: Container(
-//                 decoration: BoxDecoration(
-//                   gradient: LinearGradient(
-//                     begin: Alignment.topLeft,
-//                     end: Alignment.bottomRight,
-//                     colors: [
-//                       Colors.white,
-//                       theme.colorScheme.background,
-//                     ],
-//                   ),
-//                 ),
-//                 child: Stack(
-//                   children: [
-//                     // Professional geometric elements using theme colors
-//                     Positioned(
-//                       right: -40,
-//                       top: 30,
-//                       child: Container(
-//                         width: 140,
-//                         height: 140,
-//                         decoration: BoxDecoration(
-//                           shape: BoxShape.circle,
-//                           border: Border.all(
-//                             color: theme.colorScheme.primary.withOpacity(0.08),
-//                             width: 2,
-//                           ),
-//                         ),
-//                       ),
-//                     ),
-//                     Positioned(
-//                       right: 15,
-//                       top: 55,
-//                       child: Container(
-//                         width: 70,
-//                         height: 70,
-//                         decoration: BoxDecoration(
-//                           color: theme.colorScheme.primary.withOpacity(0.1),
-//                           borderRadius: BorderRadius.circular(20),
-//                         ),
-//                         child: Icon(
-//                           Icons.camera_alt_rounded,
-//                           color: theme.colorScheme.primary,
-//                           size: 32,
-//                         ),
-//                       ),
-//                     ),
-//                     Positioned(
-//                       right: 80,
-//                       top: 90,
-//                       child: Container(
-//                         width: 24,
-//                         height: 24,
-//                         decoration: BoxDecoration(
-//                           color: theme.colorScheme.secondary,
-//                           shape: BoxShape.circle,
-//                         ),
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//             bottom: PreferredSize(
-//               preferredSize: const Size.fromHeight(1),
-//               child: Container(
-//                 height: 1,
-//                 decoration: BoxDecoration(
-//                   gradient: LinearGradient(
-//                     colors: [
-//                       Colors.transparent,
-//                       theme.colorScheme.primary.withOpacity(0.1),
-//                       Colors.transparent,
-//                     ],
-//                   ),
-//                 ),
-//               ),
-//             ),
-//           ),
-
-//           // Professional Search and Filter Section
-//           SliverToBoxAdapter(
-//             child: FadeTransition(
-//               opacity: _fadeAnimation,
-//               child: Container(
-//                 margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-//                 padding: const EdgeInsets.all(28),
-//                 decoration: BoxDecoration(
-//                   color: Colors.white,
-//                   borderRadius: BorderRadius.circular(24),
-//                   boxShadow: [
-//                     BoxShadow(
-//                       color: theme.colorScheme.primary.withOpacity(0.08),
-//                       blurRadius: 32,
-//                       offset: const Offset(0, 12),
-//                       spreadRadius: -4,
-//                     ),
-//                     BoxShadow(
-//                       color: Colors.black.withOpacity(0.04),
-//                       blurRadius: 8,
-//                       offset: const Offset(0, 2),
-//                     ),
-//                   ],
-//                   border: Border.all(
-//                     color: theme.colorScheme.secondary.withOpacity(0.2),
-//                     width: 1,
-//                   ),
-//                 ),
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     Row(
-//                       children: [
-//                         Expanded(
-//                           child: Column(
-//                             crossAxisAlignment: CrossAxisAlignment.start,
-//                             children: [
-//                               Text(
-//                                 'Discover Talent',
-//                                 style: theme.textTheme.headlineMedium?.copyWith(
-//                                   fontWeight: FontWeight.w700,
-//                                   letterSpacing: -0.3,
-//                                 ),
-//                               ),
-//                               const SizedBox(height: 8),
-//                               Text(
-//                                 'Find professional photographers in your area',
-//                                 style: theme.textTheme.bodyMedium?.copyWith(
-//                                   color: theme.colorScheme.onSurface.withOpacity(0.7),
-//                                   height: 1.4,
-//                                 ),
-//                               ),
-//                             ],
-//                           ),
-//                         ),
-//                         Container(
-//                           width: 48,
-//                           height: 48,
-//                           decoration: BoxDecoration(
-//                             color: theme.colorScheme.primary.withOpacity(0.1),
-//                             borderRadius: BorderRadius.circular(16),
-//                           ),
-//                           child: Icon(
-//                             Icons.tune_rounded,
-//                             color: theme.colorScheme.primary,
-//                             size: 22,
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                     const SizedBox(height: 24),
-
-//                     // Enhanced Search Bar with theme colors
-//                     Container(
-//                       height: 56,
-//                       decoration: BoxDecoration(
-//                         color: theme.colorScheme.background,
-//                         borderRadius: BorderRadius.circular(18),
-//                         border: Border.all(
-//                           color: _searchFocusNode.hasFocus
-//                               ? theme.colorScheme.primary
-//                               : theme.colorScheme.secondary.withOpacity(0.3),
-//                           width: _searchFocusNode.hasFocus ? 2 : 1,
-//                         ),
-//                         boxShadow: _searchFocusNode.hasFocus
-//                             ? [
-//                                 BoxShadow(
-//                                   color: theme.colorScheme.primary.withOpacity(0.1),
-//                                   blurRadius: 8,
-//                                   offset: const Offset(0, 2),
-//                                 ),
-//                               ]
-//                             : null,
-//                       ),
-//                       child: TextField(
-//                         controller: _searchController,
-//                         focusNode: _searchFocusNode,
-//                         onChanged: (value) => filterPhotographers(value),
-//                         style: theme.textTheme.bodyLarge?.copyWith(
-//                           fontSize: 15,
-//                         ),
-//                         decoration: InputDecoration(
-//                           hintText: 'Search photographers, locations, specialties...',
-//                           hintStyle: theme.textTheme.bodyMedium?.copyWith(
-//                             color: theme.colorScheme.onSurface.withOpacity(0.5),
-//                             fontSize: 15,
-//                           ),
-//                           prefixIcon: Container(
-//                             margin: const EdgeInsets.only(left: 18, right: 14),
-//                             child: Icon(
-//                               Icons.search_rounded,
-//                               color: theme.colorScheme.primary,
-//                               size: 22,
-//                             ),
-//                           ),
-//                           suffixIcon: searchQuery.isNotEmpty
-//                               ? IconButton(
-//                                   icon: Icon(
-//                                     Icons.close_rounded,
-//                                     color: theme.colorScheme.onSurface.withOpacity(0.5),
-//                                     size: 20,
-//                                   ),
-//                                   onPressed: clearSearch,
-//                                 )
-//                               : null,
-//                           border: InputBorder.none,
-//                           contentPadding: const EdgeInsets.symmetric(
-//                             horizontal: 20,
-//                             vertical: 18,
-//                           ),
-//                         ),
-//                       ),
-//                     ),
-
-//                     const SizedBox(height: 20),
-
-//                     // Enhanced Filter Chips with theme colors
-//                     SizedBox(
-//                       height: 38,
-//                       child: ListView.separated(
-//                         scrollDirection: Axis.horizontal,
-//                         itemCount: filterOptions.length,
-//                         separatorBuilder: (context, index) => const SizedBox(width: 12),
-//                         itemBuilder: (context, index) {
-//                           final filter = filterOptions[index];
-//                           final isSelected = selectedFilter == filter;
-
-//                           return GestureDetector(
-//                             onTap: () => filterPhotographers(searchQuery, filter),
-//                             child: AnimatedContainer(
-//                               duration: const Duration(milliseconds: 200),
-//                               padding: const EdgeInsets.symmetric(
-//                                 horizontal: 18,
-//                                 vertical: 9,
-//                               ),
-//                               decoration: BoxDecoration(
-//                                 color: isSelected
-//                                     ? theme.colorScheme.primary
-//                                     : Colors.white,
-//                                 borderRadius: BorderRadius.circular(19),
-//                                 border: Border.all(
-//                                   color: isSelected
-//                                       ? theme.colorScheme.primary
-//                                       : theme.colorScheme.secondary.withOpacity(0.4),
-//                                   width: 1.5,
-//                                 ),
-//                                 boxShadow: isSelected
-//                                     ? [
-//                                         BoxShadow(
-//                                           color: theme.colorScheme.primary.withOpacity(0.3),
-//                                           blurRadius: 8,
-//                                           offset: const Offset(0, 2),
-//                                         ),
-//                                       ]
-//                                     : null,
-//                               ),
-//                               child: Text(
-//                                 filter,
-//                                 style: theme.textTheme.labelMedium?.copyWith(
-//                                   color: isSelected
-//                                       ? Colors.white
-//                                       : theme.colorScheme.onSurface.withOpacity(0.7),
-//                                   fontWeight: isSelected
-//                                       ? FontWeight.w600
-//                                       : FontWeight.w500,
-//                                   fontSize: 13,
-//                                 ),
-//                               ),
-//                             ),
-//                           );
-//                         },
-//                       ),
-//                     ),
-
-//                     if (searchQuery.isNotEmpty || selectedFilter != 'All') ...[
-//                       const SizedBox(height: 18),
-//                       Container(
-//                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-//                         decoration: BoxDecoration(
-//                           color: theme.colorScheme.primary.withOpacity(0.1),
-//                           borderRadius: BorderRadius.circular(10),
-//                           border: Border.all(
-//                             color: theme.colorScheme.primary.withOpacity(0.2),
-//                             width: 1,
-//                           ),
-//                         ),
-//                         child: Text(
-//                           '${filteredPhotographers.length} photographer${filteredPhotographers.length != 1 ? 's' : ''} found',
-//                           style: theme.textTheme.labelMedium?.copyWith(
-//                             color: theme.colorScheme.primary,
-//                             fontWeight: FontWeight.w600,
-//                             fontSize: 12,
-//                           ),
-//                         ),
-//                       ),
-//                     ],
-//                   ],
-//                 ),
-//               ),
-//             ),
-//           ),
-
-//           // Results Section
-//           filteredPhotographers.isEmpty
-//               ? SliverToBoxAdapter(child: _buildEmptyState(theme))
-//               : SliverList(
-//                   delegate: SliverChildBuilderDelegate(
-//                     (context, index) {
-//                       final photographer = filteredPhotographers[index];
-//                       return FadeTransition(
-//                         opacity: _fadeAnimation,
-//                         child: Padding(
-//                           padding: EdgeInsets.fromLTRB(
-//                             20,
-//                             index == 0 ? 20 : 10,
-//                             20,
-//                             index == filteredPhotographers.length - 1 ? 32 : 10,
-//                           ),
-//                           child: _buildPhotographerCard(photographer, theme, index),
-//                         ),
-//                       );
-//                     },
-//                     childCount: filteredPhotographers.length,
-//                   ),
-//                 ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildEmptyState(ThemeData theme) {
-//     return Container(
-//       padding: const EdgeInsets.all(40),
-//       child: Column(
-//         mainAxisAlignment: MainAxisAlignment.center,
-//         children: [
-//           Container(
-//             width: 120,
-//             height: 120,
-//             decoration: BoxDecoration(
-//               color: theme.colorScheme.primary.withOpacity(0.1),
-//               borderRadius: BorderRadius.circular(24),
-//             ),
-//             child: Icon(
-//               Icons.camera_alt_outlined,
-//               size: 56,
-//               color: theme.colorScheme.primary,
-//             ),
-//           ),
-//           const SizedBox(height: 32),
-//           Text(
-//             searchQuery.isEmpty && selectedFilter == 'All'
-//                 ? 'No photographers available'
-//                 : 'No matches found',
-//             style: theme.textTheme.headlineMedium?.copyWith(
-//               fontWeight: FontWeight.w700,
-//             ),
-//           ),
-//           const SizedBox(height: 12),
-//           Text(
-//             searchQuery.isEmpty && selectedFilter == 'All'
-//                 ? 'Check back later for available photographers in your area'
-//                 : 'Try adjusting your search terms or filters',
-//             style: theme.textTheme.bodyMedium?.copyWith(
-//               color: theme.colorScheme.onSurface.withOpacity(0.7),
-//             ),
-//             textAlign: TextAlign.center,
-//           ),
-//           if (searchQuery.isNotEmpty || selectedFilter != 'All') ...[
-//             const SizedBox(height: 32),
-//             ElevatedButton.icon(
-//               onPressed: clearSearch,
-//               icon: const Icon(Icons.refresh_rounded, size: 18),
-//               label: const Text('Reset Filters'),
-//               style: ElevatedButton.styleFrom(
-//                 backgroundColor: theme.colorScheme.primary,
-//                 foregroundColor: Colors.white,
-//                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-//                 shape: RoundedRectangleBorder(
-//                   borderRadius: BorderRadius.circular(14),
-//                 ),
-//                 elevation: 2,
-//               ),
-//             ),
-//           ],
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildPhotographerCard(Photographer photographer, ThemeData theme, int index) {
-//     return Hero(
-//       tag: 'photographer_${photographer.name}_$index',
-//       child: Material(
-//         color: Colors.transparent,
-//         child: Container(
-//           decoration: BoxDecoration(
-//             gradient: LinearGradient(
-//               begin: Alignment.topLeft,
-//               end: Alignment.bottomRight,
-//               colors: [
-//                 Colors.white,
-//                 theme.colorScheme.background.withOpacity(0.3),
-//               ],
-//             ),
-//             borderRadius: BorderRadius.circular(20),
-//             boxShadow: [
-//               BoxShadow(
-//                 color: theme.colorScheme.primary.withOpacity(0.08),
-//                 blurRadius: 20,
-//                 offset: const Offset(0, 6),
-//                 spreadRadius: -2,
-//               ),
-//               BoxShadow(
-//                 color: Colors.black.withOpacity(0.04),
-//                 blurRadius: 6,
-//                 offset: const Offset(0, 2),
-//               ),
-//             ],
-//             border: Border.all(
-//               color: theme.colorScheme.secondary.withOpacity(0.2),
-//               width: 1,
-//             ),
-//           ),
-//           child: InkWell(
-//             borderRadius: BorderRadius.circular(20),
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(
-//                   builder: (context) => PhotographerDetailPage(photographer: photographer),
-//                 ),
-//               );
-//             },
-//             child: Padding(
-//               padding: const EdgeInsets.all(20),
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   // Main Info Section - Better layout for name
-//                   Row(
-//                     crossAxisAlignment: CrossAxisAlignment.start,
-//                     children: [
-//                       // Profile Image
-//                       Container(
-//                         width: 72,
-//                         height: 72,
-//                         decoration: BoxDecoration(
-//                           borderRadius: BorderRadius.circular(16),
-//                           border: Border.all(
-//                             color: theme.colorScheme.secondary.withOpacity(0.3),
-//                             width: 2,
-//                           ),
-//                           boxShadow: [
-//                             BoxShadow(
-//                               color: theme.colorScheme.primary.withOpacity(0.1),
-//                               blurRadius: 8,
-//                               offset: const Offset(0, 2),
-//                             ),
-//                           ],
-//                         ),
-//                         child: ClipRRect(
-//                           borderRadius: BorderRadius.circular(14),
-//                           child: Image.asset(
-//                             photographer.image,
-//                             fit: BoxFit.cover,
-//                             errorBuilder: (context, error, stackTrace) {
-//                               return Container(
-//                                 decoration: BoxDecoration(
-//                                   color: theme.colorScheme.primary.withOpacity(0.1),
-//                                   borderRadius: BorderRadius.circular(14),
-//                                 ),
-//                                 child: Icon(
-//                                   Icons.camera_alt_rounded,
-//                                   color: theme.colorScheme.primary,
-//                                   size: 28,
-//                                 ),
-//                               );
-//                             },
-//                           ),
-//                         ),
-//                       ),
-
-//                       const SizedBox(width: 16),
-
-//                       // Name and Details - Fixed layout
-//                       Expanded(
-//                         child: Column(
-//                           crossAxisAlignment: CrossAxisAlignment.start,
-//                           children: [
-//                             // Name with proper overflow handling
-//                             Text(
-//                               photographer.name,
-//                               style: theme.textTheme.headlineMedium?.copyWith(
-//                                 fontSize: 18,
-//                                 fontWeight: FontWeight.w700,
-//                                 letterSpacing: -0.3,
-//                                 height: 1.2,
-//                               ),
-//                               maxLines: 2,
-//                               overflow: TextOverflow.ellipsis,
-//                             ),
-//                             const SizedBox(height: 6),
-
-//                             // Location with icon
-//                             Row(
-//                               children: [
-//                                 Icon(
-//                                   Icons.location_on_outlined,
-//                                   size: 16,
-//                                   color: theme.colorScheme.primary,
-//                                 ),
-//                                 const SizedBox(width: 4),
-//                                 Expanded(
-//                                   child: Text(
-//                                     photographer.location?.name ?? 'Location not specified',
-//                                     style: theme.textTheme.bodyMedium?.copyWith(
-//                                       fontWeight: FontWeight.w500,
-//                                       color: theme.colorScheme.onSurface.withOpacity(0.7),
-//                                     ),
-//                                     maxLines: 1,
-//                                     overflow: TextOverflow.ellipsis,
-//                                   ),
-//                                 ),
-//                               ],
-//                             ),
-//                             const SizedBox(height: 8),
-
-//                             // Status badge
-//                             Container(
-//                               padding: const EdgeInsets.symmetric(
-//                                 horizontal: 10,
-//                                 vertical: 4,
-//                               ),
-//                               decoration: BoxDecoration(
-//                                 color: photographer.isAvailable
-//                                     ? Colors.green.withOpacity(0.1)
-//                                     : Colors.red.withOpacity(0.1),
-//                                 borderRadius: BorderRadius.circular(6),
-//                                 border: Border.all(
-//                                   color: photographer.isAvailable
-//                                       ? Colors.green.withOpacity(0.3)
-//                                       : Colors.red.withOpacity(0.3),
-//                                   width: 1,
-//                                 ),
-//                               ),
-//                               child: Row(
-//                                 mainAxisSize: MainAxisSize.min,
-//                                 children: [
-//                                   Container(
-//                                     width: 6,
-//                                     height: 6,
-//                                     decoration: BoxDecoration(
-//                                       color: photographer.isAvailable ? Colors.green : Colors.red,
-//                                       shape: BoxShape.circle,
-//                                     ),
-//                                   ),
-//                                   const SizedBox(width: 6),
-//                                   Text(
-//                                     photographer.isAvailable ? 'Available' : 'Unavailable',
-//                                     style: theme.textTheme.labelSmall?.copyWith(
-//                                       color: photographer.isAvailable
-//                                           ? Colors.green.shade700
-//                                           : Colors.red.shade700,
-//                                       fontWeight: FontWeight.w600,
-//                                       fontSize: 10,
-//                                     ),
-//                                   ),
-//                                 ],
-//                               ),
-//                             ),
-//                           ],
-//                         ),
-//                       ),
-
-//                       // Price badge - positioned separately
-//                       Container(
-//                         padding: const EdgeInsets.symmetric(
-//                           horizontal: 12,
-//                           vertical: 8,
-//                         ),
-//                         decoration: BoxDecoration(
-//                           gradient: LinearGradient(
-//                             colors: [
-//                               theme.colorScheme.primary,
-//                               theme.colorScheme.tertiary,
-//                             ],
-//                           ),
-//                           borderRadius: BorderRadius.circular(12),
-//                           boxShadow: [
-//                             BoxShadow(
-//                               color: theme.colorScheme.primary.withOpacity(0.3),
-//                               blurRadius: 6,
-//                               offset: const Offset(0, 2),
-//                             ),
-//                           ],
-//                         ),
-//                         child: Text(
-//                           'Rs.${photographer.hourlyRate.toStringAsFixed(0)}/hr',
-//                           style: theme.textTheme.labelMedium?.copyWith(
-//                             color: Colors.white,
-//                             fontWeight: FontWeight.w700,
-//                             fontSize: 11,
-//                           ),
-//                         ),
-//                       ),
-//                     ],
-//                   ),
-
-//                   // Specialties Section
-//                   if (photographer.specialties.isNotEmpty) ...[
-//                     const SizedBox(height: 16),
-//                     Container(
-//                       padding: const EdgeInsets.all(16),
-//                       decoration: BoxDecoration(
-//                         color: theme.colorScheme.background,
-//                         borderRadius: BorderRadius.circular(12),
-//                         border: Border.all(
-//                           color: theme.colorScheme.secondary.withOpacity(0.25),
-//                           width: 1,
-//                         ),
-//                       ),
-//                       child: Column(
-//                         crossAxisAlignment: CrossAxisAlignment.start,
-//                         children: [
-//                           Text(
-//                             'Specialties',
-//                             style: theme.textTheme.labelMedium?.copyWith(
-//                               color: theme.colorScheme.onSurface.withOpacity(0.7),
-//                               fontWeight: FontWeight.w600,
-//                               fontSize: 11,
-//                               letterSpacing: 0.5,
-//                             ),
-//                           ),
-//                           const SizedBox(height: 10),
-//                           Wrap(
-//                             spacing: 8,
-//                             runSpacing: 6,
-//                             children: photographer.specialties.take(3).map((specialty) {
-//                               return Container(
-//                                 padding: const EdgeInsets.symmetric(
-//                                   horizontal: 10,
-//                                   vertical: 4,
-//                                 ),
-//                                 decoration: BoxDecoration(
-//                                   color: Colors.white,
-//                                   borderRadius: BorderRadius.circular(8),
-//                                   border: Border.all(
-//                                     color: theme.colorScheme.secondary.withOpacity(0.3),
-//                                     width: 1,
-//                                   ),
-//                                 ),
-//                                 child: Text(
-//                                   specialty,
-//                                   style: theme.textTheme.bodySmall?.copyWith(
-//                                     color: theme.colorScheme.onSurface,
-//                                     fontWeight: FontWeight.w500,
-//                                     fontSize: 10,
-//                                   ),
-//                                 ),
-//                               );
-//                             }).toList(),
-//                           ),
-//                           if (photographer.specialties.length > 3)
-//                             Padding(
-//                               padding: const EdgeInsets.only(top: 6),
-//                               child: Text(
-//                                 '+${photographer.specialties.length - 3} more',
-//                                 style: theme.textTheme.bodySmall?.copyWith(
-//                                   color: theme.colorScheme.primary,
-//                                   fontWeight: FontWeight.w500,
-//                                   fontSize: 10,
-//                                 ),
-//                               ),
-//                             ),
-//                         ],
-//                       ),
-//                     ),
-//                   ],
-
-//                   const SizedBox(height: 16),
-
-//                   // Action Button
-//                   SizedBox(
-//                     width: double.infinity,
-//                     height: 42,
-//                     child: ElevatedButton(
-//                       onPressed: () {
-//                         Navigator.push(
-//                           context,
-//                           MaterialPageRoute(
-//                             builder: (context) => PhotographerDetailPage(photographer: photographer),
-//                           ),
-//                         );
-//                       },
-//                       style: ElevatedButton.styleFrom(
-//                         backgroundColor: theme.colorScheme.primary,
-//                         foregroundColor: Colors.white,
-//                         elevation: 2,
-//                         shadowColor: theme.colorScheme.primary.withOpacity(0.3),
-//                         shape: RoundedRectangleBorder(
-//                           borderRadius: BorderRadius.circular(12),
-//                         ),
-//                       ),
-//                       child: Row(
-//                         mainAxisAlignment: MainAxisAlignment.center,
-//                         children: [
-//                           Text(
-//                             'View Profile',
-//                             style: theme.textTheme.labelLarge?.copyWith(
-//                               color: Colors.white,
-//                               fontWeight: FontWeight.w600,
-//                               fontSize: 14,
-//                             ),
-//                           ),
-//                           const SizedBox(width: 8),
-//                           const Icon(
-//                             Icons.arrow_forward_rounded,
-//                             size: 16,
-//                           ),
-//                         ],
-//                       ),
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }

@@ -2,22 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'photographer_dashboard.dart';
 
-class PhotographerProfileForm extends StatefulWidget {
-  const PhotographerProfileForm({super.key});
+class DecoratorProfileForm extends StatefulWidget {
+  const DecoratorProfileForm({super.key});
 
   @override
-  State<PhotographerProfileForm> createState() => _PhotographerProfileFormState();
+  State<DecoratorProfileForm> createState() => _DecoratorProfileFormState();
 }
 
-class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
+class _DecoratorProfileFormState extends State<DecoratorProfileForm> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _businessNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _hourlyRateController = TextEditingController();
+  final TextEditingController _packageStartingPriceController = TextEditingController();
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _specializationsController = TextEditingController();
+  final TextEditingController _themesController = TextEditingController();
   final TextEditingController _locationNameController = TextEditingController();
   final TextEditingController _latitudeController = TextEditingController();
   final TextEditingController _longitudeController = TextEditingController();
@@ -27,6 +28,12 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
   final TextEditingController _countryController = TextEditingController();
   final TextEditingController _profileImageUrlController = TextEditingController();
   final TextEditingController _portfolioImagesController = TextEditingController();
+  final TextEditingController _availableItemsController = TextEditingController();
+  final TextEditingController _availableDatesController = TextEditingController();
+
+  bool _offersFlowerArrangements = false;
+  bool _offersLighting = false;
+  bool _offersRentals = false;
 
   bool _loading = false;
   String? _error;
@@ -43,8 +50,23 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       _error = null;
     });
     final token = await getAccessToken();
-    final url = Uri.parse('http://10.0.2.2:9009/api/v1/photographers/profile');
+    final url = Uri.parse('http://10.0.2.2:9009/api/v1/decorators/profile');
     final specializations = _specializationsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final themes = _themesController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final availableItems = _availableItemsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final availableDates = _availableDatesController.text
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
@@ -53,8 +75,15 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       "businessName": _businessNameController.text,
       "description": _descriptionController.text,
       "hourlyRate": double.tryParse(_hourlyRateController.text) ?? 0,
-      "experience": _experienceController.text,
+      "packageStartingPrice": double.tryParse(_packageStartingPriceController.text) ?? 0,
+      "experienceYears": int.tryParse(_experienceController.text) ?? 0,
       "specializations": specializations,
+      "themes": themes,
+      "offersFlowerArrangements": _offersFlowerArrangements,
+      "offersLighting": _offersLighting,
+      "offersRentals": _offersRentals,
+      "availableItems": availableItems,
+      "availableDates": availableDates,
       "location": {
         "name": _locationNameController.text,
         "latitude": double.tryParse(_latitudeController.text) ?? 0,
@@ -69,7 +98,7 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       bodyMap["profileImage"] = _profileImageUrlController.text;
     }
     if (_portfolioImagesController.text.isNotEmpty) {
-      bodyMap["portfolioImages"] = _portfolioImagesController.text
+      bodyMap["portfolio"] = _portfolioImagesController.text
           .split(',')
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
@@ -88,12 +117,9 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       if (response.statusCode == 201) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile created successfully!')),
+            const SnackBar(content: Text('Decorator profile created successfully!')),
           );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const PhotographerDashboard()),
-          );
+          Navigator.pop(context);
         }
       } else {
         setState(() {
@@ -114,7 +140,7 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Photographer Profile')),
+      appBar: AppBar(title: const Text('Create Decorator Profile')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -139,13 +165,47 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
               ),
               TextFormField(
+                controller: _packageStartingPriceController,
+                decoration: const InputDecoration(labelText: 'Package Starting Price'),
+                keyboardType: TextInputType.number,
+                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+              ),
+              TextFormField(
                 controller: _experienceController,
-                decoration: const InputDecoration(labelText: 'Experience'),
+                decoration: const InputDecoration(labelText: 'Experience Years'),
+                keyboardType: TextInputType.number,
               ),
               TextFormField(
                 controller: _specializationsController,
                 decoration: const InputDecoration(labelText: 'Specializations (comma separated)'),
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+              ),
+              TextFormField(
+                controller: _themesController,
+                decoration: const InputDecoration(labelText: 'Themes (comma separated)'),
+              ),
+              SwitchListTile(
+                title: const Text('Offers Flower Arrangements'),
+                value: _offersFlowerArrangements,
+                onChanged: (val) => setState(() => _offersFlowerArrangements = val),
+              ),
+              SwitchListTile(
+                title: const Text('Offers Lighting'),
+                value: _offersLighting,
+                onChanged: (val) => setState(() => _offersLighting = val),
+              ),
+              SwitchListTile(
+                title: const Text('Offers Rentals'),
+                value: _offersRentals,
+                onChanged: (val) => setState(() => _offersRentals = val),
+              ),
+              TextFormField(
+                controller: _availableItemsController,
+                decoration: const InputDecoration(labelText: 'Available Items (comma separated)'),
+              ),
+              TextFormField(
+                controller: _availableDatesController,
+                decoration: const InputDecoration(labelText: 'Available Dates (comma separated)'),
               ),
               const SizedBox(height: 16),
               const Text('Location', style: TextStyle(fontWeight: FontWeight.bold)),

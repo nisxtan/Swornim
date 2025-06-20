@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:swornim/pages/components/common/common/profile/profile_panel.dart';
 import 'package:swornim/pages/introduction/slider.dart';
 import 'package:swornim/pages/layouts/main_layout.dart';
+import 'package:swornim/pages/service_providers/decorator/decorator_list_page.dart';
 import 'package:swornim/pages/service_providers/makeupartist/makeupartist_list_page.dart';
 import 'package:swornim/pages/service_providers/photographer/photographer_list_page.dart';
 import 'package:swornim/pages/service_providers/venues/venuelistpage.dart';
@@ -115,10 +116,7 @@ class _ClientDashboardState extends State<ClientDashboard> with SingleTickerProv
         );
         break;
       case 'Decorators':
-        // Navigator.push(context, MaterialPageRoute(builder: (context) => DecoratorListPage()));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Decorators feature coming soon!')),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const DecoratorListPage()));
         break;
     }
   }

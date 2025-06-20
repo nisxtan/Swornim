@@ -103,6 +103,21 @@ class ServiceProviderFactory {
   static Map<String, dynamic> _normalizeJson(Map<String, dynamic> json) {
     final normalized = Map<String, dynamic>.from(json);
     
+    // Map camelCase backend fields to expected snake_case fields
+    if (normalized.containsKey('userId')) normalized['user_id'] = normalized['userId'];
+    if (normalized.containsKey('businessName')) normalized['business_name'] = normalized['businessName'];
+    if (normalized.containsKey('profileImage')) normalized['image'] = normalized['profileImage'];
+    if (normalized.containsKey('profileImagePublicId')) normalized['image_public_id'] = normalized['profileImagePublicId'];
+    if (normalized.containsKey('portfolioImages')) normalized['portfolio'] = normalized['portfolioImages'];
+    if (normalized.containsKey('hourlyRate')) normalized['hourly_rate'] = double.tryParse(normalized['hourlyRate'].toString()) ?? 0.0;
+    if (normalized.containsKey('eventRate')) normalized['event_rate'] = double.tryParse(normalized['eventRate'].toString()) ?? 0.0;
+    if (normalized.containsKey('totalReviews')) normalized['total_reviews'] = normalized['totalReviews'];
+    if (normalized.containsKey('isAvailable')) normalized['is_available'] = normalized['isAvailable'];
+    if (normalized.containsKey('experience')) normalized['experience_years'] = int.tryParse(normalized['experience'].toString()) ?? 0;
+    if (normalized.containsKey('createdAt')) normalized['created_at'] = normalized['createdAt'];
+    if (normalized.containsKey('updatedAt')) normalized['updated_at'] = normalized['updatedAt'];
+    // Add more mappings as needed for other models/fields
+    
     // Map Django field names to expected field names
     if (normalized.containsKey('user') && !normalized.containsKey('user_id')) {
       normalized['user_id'] = normalized['user'];
@@ -360,15 +375,15 @@ class ServiceProviderFactory {
   static String getApiEndpoint(ServiceProviderType type) {
     switch (type) {
       case ServiceProviderType.makeupArtist:
-        return '/makeup-artists/';
+        return '/makeup-artists/search';
       case ServiceProviderType.photographer:
-        return '/photographers/';
+        return '/photographers/search';
       case ServiceProviderType.venue:
         return '/venues/';
       case ServiceProviderType.caterer:
         return '/caterers/';
       case ServiceProviderType.decorator:
-        return '/decorators/';
+        return '/decorators/search';
       case ServiceProviderType.eventOrganizer:
         return '/event-organizers/';
     }

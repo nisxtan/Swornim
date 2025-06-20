@@ -82,6 +82,8 @@ class User {
       case 'makeup_artist':
       case 'makeupartist':
         return UserType.makeupArtist;
+      case 'decorator':
+        return UserType.decorator;
       case 'client':
       default:
         return UserType.client;

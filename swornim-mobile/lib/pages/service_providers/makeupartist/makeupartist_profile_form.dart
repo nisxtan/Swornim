@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'photographer_dashboard.dart';
+import 'package:swornim/pages/service_providers/photographer/photographer_dashboard.dart';
 
-class PhotographerProfileForm extends StatefulWidget {
-  const PhotographerProfileForm({super.key});
+class MakeupArtistProfileForm extends StatefulWidget {
+  const MakeupArtistProfileForm({super.key});
 
   @override
-  State<PhotographerProfileForm> createState() => _PhotographerProfileFormState();
+  State<MakeupArtistProfileForm> createState() => _MakeupArtistProfileFormState();
 }
 
-class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
+class _MakeupArtistProfileFormState extends State<MakeupArtistProfileForm> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _businessNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _hourlyRateController = TextEditingController();
-  final TextEditingController _experienceController = TextEditingController();
+  final TextEditingController _sessionRateController = TextEditingController();
+  final TextEditingController _bridalPackageRateController = TextEditingController();
+  final TextEditingController _brandsController = TextEditingController();
+  final TextEditingController _experienceYearsController = TextEditingController();
   final TextEditingController _specializationsController = TextEditingController();
   final TextEditingController _locationNameController = TextEditingController();
   final TextEditingController _latitudeController = TextEditingController();
@@ -27,7 +29,10 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
   final TextEditingController _countryController = TextEditingController();
   final TextEditingController _profileImageUrlController = TextEditingController();
   final TextEditingController _portfolioImagesController = TextEditingController();
+  final TextEditingController _availableDatesController = TextEditingController();
 
+  bool _offersHairServices = false;
+  bool _travelsToClient = true;
   bool _loading = false;
   String? _error;
 
@@ -43,8 +48,23 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       _error = null;
     });
     final token = await getAccessToken();
-    final url = Uri.parse('http://10.0.2.2:9009/api/v1/photographers/profile');
+    final url = Uri.parse('http://10.0.2.2:9009/api/v1/makeup-artists/profile');
     final specializations = _specializationsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final brands = _brandsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final portfolioImages = _portfolioImagesController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final availableDates = _availableDatesController.text
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
@@ -52,9 +72,14 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
     final Map<String, dynamic> bodyMap = {
       "businessName": _businessNameController.text,
       "description": _descriptionController.text,
-      "hourlyRate": double.tryParse(_hourlyRateController.text) ?? 0,
-      "experience": _experienceController.text,
+      "sessionRate": double.tryParse(_sessionRateController.text) ?? 0,
+      "bridalPackageRate": double.tryParse(_bridalPackageRateController.text) ?? 0,
+      "brands": brands,
+      "experienceYears": int.tryParse(_experienceYearsController.text) ?? 0,
       "specializations": specializations,
+      "offersHairServices": _offersHairServices,
+      "travelsToClient": _travelsToClient,
+      "availableDates": availableDates,
       "location": {
         "name": _locationNameController.text,
         "latitude": double.tryParse(_latitudeController.text) ?? 0,
@@ -68,12 +93,8 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
     if (_profileImageUrlController.text.isNotEmpty) {
       bodyMap["profileImage"] = _profileImageUrlController.text;
     }
-    if (_portfolioImagesController.text.isNotEmpty) {
-      bodyMap["portfolioImages"] = _portfolioImagesController.text
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
+    if (portfolioImages.isNotEmpty) {
+      bodyMap["portfolioImages"] = portfolioImages;
     }
     final body = jsonEncode(bodyMap);
     try {
@@ -87,9 +108,7 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
       );
       if (response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile created successfully!')),
-          );
+          // TODO: Replace with MakeupArtistDashboard when implemented
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const PhotographerDashboard()),
@@ -114,7 +133,7 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Photographer Profile')),
+      appBar: AppBar(title: const Text('Create Makeup Artist Profile')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -133,19 +152,44 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
                 maxLines: 2,
               ),
               TextFormField(
-                controller: _hourlyRateController,
-                decoration: const InputDecoration(labelText: 'Hourly Rate'),
+                controller: _sessionRateController,
+                decoration: const InputDecoration(labelText: 'Session Rate'),
                 keyboardType: TextInputType.number,
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
               ),
               TextFormField(
-                controller: _experienceController,
-                decoration: const InputDecoration(labelText: 'Experience'),
+                controller: _bridalPackageRateController,
+                decoration: const InputDecoration(labelText: 'Bridal Package Rate'),
+                keyboardType: TextInputType.number,
+                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+              ),
+              TextFormField(
+                controller: _brandsController,
+                decoration: const InputDecoration(labelText: 'Brands (comma separated)'),
+              ),
+              TextFormField(
+                controller: _experienceYearsController,
+                decoration: const InputDecoration(labelText: 'Experience Years'),
+                keyboardType: TextInputType.number,
               ),
               TextFormField(
                 controller: _specializationsController,
                 decoration: const InputDecoration(labelText: 'Specializations (comma separated)'),
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+              ),
+              SwitchListTile(
+                title: const Text('Offers Hair Services'),
+                value: _offersHairServices,
+                onChanged: (val) => setState(() => _offersHairServices = val),
+              ),
+              SwitchListTile(
+                title: const Text('Travels to Client'),
+                value: _travelsToClient,
+                onChanged: (val) => setState(() => _travelsToClient = val),
+              ),
+              TextFormField(
+                controller: _availableDatesController,
+                decoration: const InputDecoration(labelText: 'Available Dates (comma separated)'),
               ),
               const SizedBox(height: 16),
               const Text('Location', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -202,7 +246,11 @@ class _PhotographerProfileFormState extends State<PhotographerProfileForm> {
               ElevatedButton(
                 onPressed: _loading ? null : _submitForm,
                 child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Create Profile'),
               ),
             ],
